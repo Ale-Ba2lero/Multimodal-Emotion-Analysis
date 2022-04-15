@@ -1,11 +1,10 @@
-
 import argparse, os
 import glob
 import cv2
-
+from tqdm import tqdm
 
 def get_frames(files_paths, destination_folder=None):
-    IDX_FRAME = [30]
+    IDX_FRAME = [15,30,45,60,75]
 
     if destination_folder is None:
         parent_dir = os.getcwd()
@@ -18,7 +17,7 @@ def get_frames(files_paths, destination_folder=None):
         print('Saving frames in ', destination_folder)
 
     frame_suffix = 0
-    for file_path in files_paths:
+    for file_path in tqdm(files_paths):
         cam = cv2.VideoCapture(file_path)
         file_path = os.path.normpath(file_path)
         f_desc = file_path.split(os.sep)[-1].split('.')[0].split('-')
@@ -34,7 +33,7 @@ def get_frames(files_paths, destination_folder=None):
                 if frame_idx in IDX_FRAME:
                     file_name = f_desc + str(frame_suffix) + '.jpg'
                     frame_path = os.path.join(destination_folder, file_name)
-                    print ('Creating...' + frame_path)
+                    #print ('Creating...' + frame_path)
                     frame_suffix += 1
                     # writing the extracted images
                     cv2.imwrite(frame_path, frame)
@@ -42,9 +41,10 @@ def get_frames(files_paths, destination_folder=None):
                 # if video is still left continue creating images
             else:
                 break
-
+        
         cam.release()
         cv2.destroyAllWindows()
+    print ('Done!')
 
 
 def find_video_files(folder_path):
