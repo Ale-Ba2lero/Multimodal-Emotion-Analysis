@@ -14,8 +14,39 @@ import os
 from skimage import transform
 from tqdm import tqdm
 
+import random
+
 
 emocat = {0:'neutral', 1:'calm', 2:'happy', 3:'sad', 4:'angry', 5:'fearful', 6:'disgust', 7:'surprised'}
+
+
+def getRandomImage(folder_path):
+    folder_path = os.path.normpath(folder_path)
+    file_name = random.choice(os.listdir(folder_path))
+    image = plt.imread(os.path.join(folder_path, file_name))
+    cat = int(file_name.split('-')[0])-1
+    return image, cat
+
+
+def predict(model, image, image_size, device=None):
+    if device is None:
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    
+    model.to(device)
+    model.eval()
+        
+    toTensor = ToTensor()
+    crop = CenterCrop(image_size)
+    rescale = Rescale(image_size)
+    
+    image = toTensor(crop(rescale(image)))
+    image = torch.reshape(image, (1, 3, image_size, image_size))
+    image = Variable(image.to(device))
+    
+    outputs = model(image)
+    _, predicted = torch.max(outputs, 1)
+    
+    return predicted.item()
 
 
 class FaceEmotionDataset(Dataset):
@@ -60,20 +91,27 @@ class Rescale(object):
         self.output_size = output_size
 
     def __call__(self, sample):
-        image = sample['image']
-        h, w = image.shape[:2]
-        if isinstance(self.output_size, int):
-            if h > w:
-                new_h, new_w = self.output_size * h / w, self.output_size
-            else:
-                new_h, new_w = self.output_size, self.output_size * w / h
+        if type(sample) is dict:
+            image = sample['image']
+            h, w = image.shape[:2]
+            if isinstance(self.output_size, int):
+                if h > w: new_h, new_w = self.output_size * h / w, self.output_size
+                else: new_h, new_w = self.output_size, self.output_size * w / h
+            else: new_h, new_w = self.output_size
+            new_h, new_w = int(new_h), int(new_w)
+            image = transform.resize(image, (new_h, new_w))
+            return {'image': image, 'cat': sample['cat']}
         else:
-            new_h, new_w = self.output_size
-        new_h, new_w = int(new_h), int(new_w)
-        img = transform.resize(image, (new_h, new_w))
-        return {'image': img, 'cat': sample['cat']}
+            h, w = sample.shape[:2]
+            if isinstance(self.output_size, int):
+                if h > w: new_h, new_w = self.output_size * h / w, self.output_size
+                else: new_h, new_w = self.output_size, self.output_size * w / h
+            else: new_h, new_w = self.output_size
+            new_h, new_w = int(new_h), int(new_w)
+            image = transform.resize(sample, (new_h, new_w))
+            return image
 
-
+        
 class CenterCrop(object):
     """Crop the image at the center.
 
@@ -90,14 +128,22 @@ class CenterCrop(object):
             self.output_size = output_size
 
     def __call__(self, sample):
-        image = sample['image']
-        h, w = image.shape[:2]
-        new_h, new_w = self.output_size
-        top = (h - new_h) // 2
-        left = (w - new_w) // 2
-        image = image[top: top + new_h,left: left + new_w]
-        return {'image': image, 'cat': sample['cat']}
-
+        if type(sample) is dict:
+            image = sample['image']
+            h, w = image.shape[:2]
+            new_h, new_w = self.output_size
+            top = (h - new_h) // 2
+            left = (w - new_w) // 2
+            image = image[top: top + new_h,left: left + new_w]
+            return {'image': image, 'cat': sample['cat']}
+        else:
+            h, w = sample.shape[:2]
+            new_h, new_w = self.output_size
+            top = (h - new_h) // 2
+            left = (w - new_w) // 2
+            image = sample[top: top + new_h,left: left + new_w]
+            return image
+           
     
 class RandomCrop(CenterCrop):
     
@@ -111,29 +157,40 @@ class RandomCrop(CenterCrop):
         super(RandomCrop, self).__init__(output_size)
 
     def __call__(self, sample):
-        image = sample['image']
-        h, w = image.shape[:2]
-        new_h, new_w = self.output_size
-        top = np.random.randint(0, h - new_h)
-        left = np.random.randint(0, w - new_w)
-        image = image[top: top + new_h,left: left + new_w]
-        return {'image': image, 'cat': sample['cat']}
+        if type(sample) is dict:
+            image = sample['image']
+            h, w = image.shape[:2]
+            new_h, new_w = self.output_size
+            top = np.random.randint(0, h - new_h)
+            left = np.random.randint(0, w - new_w)
+            image = image[top: top + new_h,left: left + new_w]
+            return {'image': image, 'cat': sample['cat']}
+        else:
+            h, w = sample.shape[:2]
+            new_h, new_w = self.output_size
+            top = np.random.randint(0, h - new_h)
+            left = np.random.randint(0, w - new_w)
+            image = sample[top: top + new_h,left: left + new_w]
+            return image
 
     
 class ToTensor(object):
     """Convert ndarrays in sample to Tensors."""
 
     def __call__(self, sample):
-        image = sample['image']
+        if type(sample) is dict:
+            image = sample['image']
 
-        # swap color axis because
-        # numpy image: H x W x C
-        # torch image: C x H x W
-        image = image.transpose((2, 0, 1))
-        return {'image': torch.from_numpy(image),
-                'cat': torch.tensor(sample['cat'])} 
+            # swap color axis because
+            # numpy image: H x W x C
+            # torch image: C x H x W
+            image = image.transpose((2, 0, 1))
+            return {'image': torch.from_numpy(image),
+                    'cat': torch.tensor(sample['cat'])} 
+        else:
+            image = sample.transpose((2, 0, 1))
+            return torch.from_numpy(image)
     
-
 
 class EmoClassCNN(nn.Module):
     def __init__(self, image_size, num_classes):
@@ -215,9 +272,6 @@ def train(model, dataset_loader, loss_fn, optimizer, num_epochs=5):
 
     # Define your execution device
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    print("The model will be running on", device, "device")
-    # Convert model parameters and buffers to CPU or Cuda
-    model.to(device)
 
     for epoch in tqdm(range(num_epochs)):
         running_loss = 0.0
@@ -245,13 +299,16 @@ def train(model, dataset_loader, loss_fn, optimizer, num_epochs=5):
         print('For epoch', epoch+1,'the test accuracy over the whole test set is %d %%' % (accuracy))
 
         # save the model if the accuracy is the best
-
+        
+        '''
         if accuracy > best_accuracy:
             path = "./emoclassmodel.pth"
             torch.save(model.state_dict(), path)
             best_accuracy = accuracy
+        '''
 
     return training_loss, test_loss
+
 
 def testAccuracy(model, testset_loader, loss_fn):
     model.eval()
@@ -279,7 +336,6 @@ def testAccuracy(model, testset_loader, loss_fn):
     return(accuracy, running_loss) 
 
 
-    # Function to test the model with a batch of images and show the labels predictions
 def testBatch(model, trainsetLoader):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -294,7 +350,7 @@ def testBatch(model, trainsetLoader):
     batch_size = len(labels)
 
     # Show the real labels on the screen 
-    print('Real labels: ', ' '.join('%5s' % emocat[labels[j].item()] for j in range(batch_size)))
+    print('Real labels:', '\t'.join('%5s' % emocat[labels[j].item()] for j in range(batch_size)))
 
     # Let's see what if the model identifiers the  labels of those example
     outputs = model(images)
@@ -303,35 +359,7 @@ def testBatch(model, trainsetLoader):
     _, predicted = torch.max(outputs, 1)
 
     # Let's show the predicted labels on the screen to compare with the real ones
-    print('Predicted: ', ' '.join('%5s' % emocat[predicted[j].item()] for j in range(batch_size)))
-
-
-def testClassess(model, testset_loader, num_classes):
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    
-    class_correct = list(0. for i in range(num_classes))
-    class_total = list(0. for i in range(num_classes))
-
-    with torch.no_grad():
-        for data in tqdm(testset_loader):
-            sample = next(iter(testset_loader))
-            images = Variable(sample['image'].to(device))
-            labels = Variable(sample['cat'].to(device))
-
-            batch_size = len(labels)
-
-            outputs = model(images)
-            _, predicted = torch.max(outputs, 1)
-            c = (predicted == labels).squeeze()
-
-            for i in range(batch_size):
-                label = labels[i].item()
-                class_correct[label] += c[i].item()
-                class_total[label] += 1
-
-    for i in range(num_classes):
-        print('Accuracy of %5s : %2d %%' % (
-            emocat[i], 100 * class_correct[i] / class_total[i]))
+    print('Predicted:', '\t'.join('%5s' % emocat[predicted[j].item()] for j in range(batch_size)))
 
 
 # Function to show the images
