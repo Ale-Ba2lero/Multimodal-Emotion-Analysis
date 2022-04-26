@@ -274,6 +274,7 @@ class EmoClassCNN(nn.Module):
 
     
 def train(model, dataset_loader, loss_fn, optimizer, num_epochs=5):
+    
     training_loss = []
     test_loss = []
     best_accuracy = 0.0
@@ -311,12 +312,10 @@ def train(model, dataset_loader, loss_fn, optimizer, num_epochs=5):
 
         # save the model if the accuracy is the best
         
-        '''
         if accuracy > best_accuracy:
-            path = "./emoclassmodel.pth"
+            path = "./emoclassmodel_01.pth"
             torch.save(model.state_dict(), path)
             best_accuracy = accuracy
-        '''
 
     return training_loss, test_loss
 

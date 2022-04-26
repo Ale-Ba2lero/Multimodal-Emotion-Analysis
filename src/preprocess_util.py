@@ -2,6 +2,12 @@
 # publication/222741832_Evidence_for_a_Three-Factor_Theory_of_Emotions/links/
 # 5b4c7ccf0f7e9b4637ddf5a0/Evidence-for-a-Three-Factor-Theory-of-Emotions.pdf
 #   "Calm" was replaced with "relaxed".
+
+# From the paper above:
+# For each emotion term, mean pleasure-displeasure, arousal-nonarousal,
+# and dominance-submissiveness scores were computed across all subjects
+# who rated that term. These means were transformed linearly to a scale
+# ranging from - 1 to + 1 with a neutral value of 0. 
 EMOTION_CORE_AFFECT_MAP_LOC = {
     "neutral": (0.0, 0.0),
     "calm": (0.68, -0.46),
@@ -10,7 +16,7 @@ EMOTION_CORE_AFFECT_MAP_LOC = {
     "angry": (-0.51, 0.59),
     "fearful": (-0.64, 0.6),
     "disgust": (-0.6, 0.35),
-    "surprise": (0.4, 0.67)
+    "surprised": (0.4, 0.67)
 }
 
 EMOTION_CORE_AFFECT_MAP_STD_DEV = {
@@ -21,7 +27,7 @@ EMOTION_CORE_AFFECT_MAP_STD_DEV = {
     "angry": (0.2, 0.33),
     "fearful": (0.2, 0.32),
     "disgust": (0.2, 0.41),
-    "surprise": (0.3, 0.27)
+    "surprised": (0.3, 0.27)
 }
 
 
