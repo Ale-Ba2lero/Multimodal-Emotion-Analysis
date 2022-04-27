@@ -1,8 +1,8 @@
-
 import argparse, os
 import glob
 import cv2
 from tqdm import tqdm
+
 
 def get_frames(files_paths, destination_folder=None):
     IDX_FRAME = [15,30,45,60,75]
