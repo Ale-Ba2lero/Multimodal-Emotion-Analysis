@@ -100,17 +100,17 @@ class ImageDecoder(nn.Module):
 class EmotionEncoder(nn.Module):
     def __init__(self, z_dim, input_dim, use_cuda=True):
         super(EmotionEncoder, self).__init__()
-        self.net = nn.Linear(input_dim, 256)
+        self.net = nn.Linear(input_dim, 512)
         
         self.z_loc_layer = nn.Sequential(
-            nn.Linear(256, 256),
+            nn.Linear(512, 512),
             Swish(),
-            nn.Linear(256, z_dim))
+            nn.Linear(512, z_dim))
         
         self.z_scale_layer = nn.Sequential(
-            nn.Linear(256, 256),
+            nn.Linear(512, 512),
             Swish(),
-            nn.Linear(256, z_dim))
+            nn.Linear(512, z_dim))
         self.z_dim = z_dim
 
     def forward(self, emocat):
@@ -124,18 +124,18 @@ class EmotionDecoder(nn.Module):
     def __init__(self, z_dim, input_dim):
         super(EmotionDecoder, self).__init__()
         self.net = nn.Sequential(
-            nn.Linear(z_dim, 256),
+            nn.Linear(z_dim, 512),
             Swish())
         
         self.emotion_loc_layer = nn.Sequential(
-            nn.Linear(256, 256),
+            nn.Linear(512, 512),
             Swish(),
-            nn.Linear(256, input_dim))
+            nn.Linear(512, input_dim))
         
         self.emotion_scale_layer = nn.Sequential(
-            nn.Linear(256, 256),
+            nn.Linear(512, 512),
             Swish(),
-            nn.Linear(256, input_dim))
+            nn.Linear(512, input_dim))
 
     def forward(self, z):
         hidden = self.net(z)
@@ -290,6 +290,16 @@ class MVAE(nn.Module):
     def emotion_classifier(self, images):
         z_loc, z_scale = self.image_encoder(images)
         z = dist.Normal(z_loc, z_scale).sample()
+        emotion_loc, emotion_scale = self.emotion_decoder.forward(z)
+        return dist.Normal(emotion_loc, emotion_scale).sample()
+ 
+
+    def emoToZ(self, emotion):
+        z_loc, z_scale = self.emotion_encoder.forward(emotion)
+        return dist.Normal(z_loc, z_scale).sample()
+
+    
+    def zToEmo(self, z):
         emotion_loc, emotion_scale = self.emotion_decoder.forward(z)
         return dist.Normal(emotion_loc, emotion_scale).sample()
         
