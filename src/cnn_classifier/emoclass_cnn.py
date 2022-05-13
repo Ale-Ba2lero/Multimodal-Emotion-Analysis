@@ -1,21 +1,12 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import torchvision
 from torch.autograd import Variable
-from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms
 
 import matplotlib.pyplot as plt
 import numpy as np
-import glob
-import os
 
-from skimage import transform
 from tqdm import tqdm
-
-import random
-
 from RAVDESS_dataset_util import ToTensor, CenterCrop, Rescale
 
 class EmoClassCNN(nn.Module):
