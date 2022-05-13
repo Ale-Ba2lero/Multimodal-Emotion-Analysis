@@ -2,7 +2,7 @@ import torch
 
 torch.set_default_dtype(torch.float64)  # double precision for numerical stability
 import matplotlib.pyplot as plt
-from search_inference import HashingMarginal, memoize, Search
+from util.search_inference import HashingMarginal, memoize, Search
 import numpy as np
 
 

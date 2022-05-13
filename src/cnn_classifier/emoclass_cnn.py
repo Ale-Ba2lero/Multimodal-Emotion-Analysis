@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from tqdm import tqdm
-from RAVDESS_dataset_util import ToTensor, CenterCrop, Rescale
+from util.RAVDESS_dataset_util import ToTensor, CenterCrop, Rescale
 
 class EmoClassCNN(nn.Module):
     def __init__(self, image_size, num_classes):

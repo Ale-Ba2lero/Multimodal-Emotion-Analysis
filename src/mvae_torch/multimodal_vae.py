@@ -4,12 +4,10 @@ from typing import Tuple
 import torch
 import torch.nn.functional as torch_functional
 
-from model.util import Expert
+from util import Expert
 
 
 class ExteroceptiveMultimodalVariationalAutoencoder(torch.nn.Module):
-    """
-    """
 
     def __init__(
             self,
