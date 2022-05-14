@@ -6,7 +6,7 @@ import itertools
 import pickle
 from typing import Tuple, Generator, List, Any, Optional
 
-import librosa
+#import librosa
 import numpy
 
 import numpy.random
@@ -16,11 +16,11 @@ import tqdm
 from omegaconf import DictConfig
 from torch.utils.data import Dataset
 
-from dataset.iemocap.iemocap_enrich import LoadUtils
+#from dataset.iemocap.iemocap_enrich import LoadUtils
 
 
 def get_modality_input_dimensions_from_data(dataset: Dataset, modality: str) -> Optional[dict]:
-    face_data, audio_data, annotation_data = dataset[0]
+    face_data, emocat_data = dataset[0]
 
     if modality == "cnn":
         # The input dims are hardwired into the CNN components unfortunately...
@@ -28,8 +28,7 @@ def get_modality_input_dimensions_from_data(dataset: Dataset, modality: str) -> 
     elif modality == "vrnn" or modality == "plain":
         input_dims: Optional[dict] = {
             "face": face_data.shape[-1],
-            "audio": audio_data.shape[-1],
-            "annotation": annotation_data.shape[-1]
+            "emocat": emocat_data.shape[-1]
         }
     else:
         raise ValueError(f"Unknown model modality '{modality}'")
@@ -194,7 +193,7 @@ def split_list_randomly(list_obj: List[Any], split_percentage: float) -> Tuple[L
     return first_list, second_list
 
 
-def load_preprocessed_dataset(cfg: DictConfig) -> Tuple[Dataset, Dataset]:
+def load_preprocessed_dataset(cfg: dict) -> Tuple[Dataset, Dataset]:
     if cfg.model_type == "plain":
         with open(cfg.paths.plain.training_data_path, "rb") as in_stream:
             ravdess_exteroceptive_dataset_train: torch.utils.data.Dataset = pickle.load(in_stream)

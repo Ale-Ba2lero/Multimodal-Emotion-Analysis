@@ -4,7 +4,7 @@ from typing import Tuple
 import torch
 import torch.nn.functional as torch_functional
 
-from util import Expert
+from torch_mvae_util import Expert
 
 
 class ExteroceptiveMultimodalVariationalAutoencoder(torch.nn.Module):

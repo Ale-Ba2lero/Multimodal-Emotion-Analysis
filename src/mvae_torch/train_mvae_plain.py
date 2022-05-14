@@ -2,15 +2,16 @@ import logging
 import os
 from typing import Tuple, List, Generator
 
-import hydra
+#import hydra
 import numpy
 import torch
 import tqdm
 from omegaconf import DictConfig
 from torch.utils.data import Dataset, DataLoader
 
-import model.util as util
-from model import multimodal_vae, model_component
+import torch_mvae_util
+import multimodal_vae  
+import nn_modules
 
 _logger = logging.getLogger(__name__)
 
@@ -18,7 +19,7 @@ _logger = logging.getLogger(__name__)
 def build_model(
         input_dims: dict,
         latent_space_dim: int,
-        va_mlp_hidden_dim: int,
+        hidden_dim: int,
         loss_weights: dict,
         expert_type: str,
         use_cuda: bool
@@ -26,38 +27,26 @@ def build_model(
     # TODO: add support for loading a pretrained model
 
     # Build the face modality components
-    face_encoder: torch.nn.Module = model_component.MultilayerPerceptronEncoder(
+    face_encoder: torch.nn.Module = nn_modules.MultilayerPerceptronEncoder(
         input_dim=input_dims["face"],
-        hidden_dim=va_mlp_hidden_dim,
+        hidden_dim=hidden_dim,
         z_dim=latent_space_dim
     )
-    face_decoder: torch.nn.Module = model_component.MultilayerPerceptronDecoderSigmoid(
+    face_decoder: torch.nn.Module = nn_modules.MultilayerPerceptronDecoderSigmoid(
         input_dim=input_dims["face"],
-        hidden_dim=va_mlp_hidden_dim,
+        hidden_dim=hidden_dim,
         z_dim=latent_space_dim
     )
 
-    # Build the voice modality components
-    voice_encoder: torch.nn.Module = model_component.MultilayerPerceptronEncoder(
-        input_dim=input_dims["audio"],
-        hidden_dim=va_mlp_hidden_dim,
+    # Build the discrete emotion category modality components
+    emocat_encoder: torch.nn.Module = nn_modules.MultilayerPerceptronEncoder(
+        input_dim=input_dims["emocat"],
+        hidden_dim=hidden_dim,
         z_dim=latent_space_dim
     )
-    voice_decoder: torch.nn.Module = model_component.MultilayerPerceptronDecoder(
-        input_dim=input_dims["audio"],
-        hidden_dim=va_mlp_hidden_dim,
-        z_dim=latent_space_dim
-    )
-
-    # Build the valence-arousal modality components
-    va_encoder: torch.nn.Module = model_component.MultilayerPerceptronEncoder(
-        input_dim=input_dims["annotation"],
-        hidden_dim=va_mlp_hidden_dim,
-        z_dim=latent_space_dim
-    )
-    va_decoder: torch.nn.Module = model_component.MultilayerPerceptronDecoder(
-        input_dim=input_dims["annotation"],
-        hidden_dim=va_mlp_hidden_dim,
+    emocat_decoder: torch.nn.Module = nn_modules.MultilayerPerceptronDecoder(
+        input_dim=input_dims["emocat"],
+        hidden_dim=hidden_dim,
         z_dim=latent_space_dim
     )
 
@@ -74,10 +63,8 @@ def build_model(
     exteroceptive_mmvae: torch.nn.Module = mmvae.ExteroceptiveMultimodalVariationalAutoencoder(
         face_encoder=face_encoder,
         face_decoder=face_decoder,
-        voice_encoder=voice_encoder,
-        voice_decoder=voice_decoder,
-        va_encoder=va_encoder,
-        va_decoder=va_decoder,
+        emocat_encoder=emocat_encoder,
+        emocat_decoder=emocat_decoder,
         loss_weights=loss_weights,
         expert=expert,
         latent_space_dim=latent_space_dim,
@@ -303,7 +290,7 @@ def train(
         logger.info(f"Saved model to '{cfg.train.plain.stats_save_path}', and also locally.")
 
 
-@hydra.main(config_path="../../../config", config_name="ravdess_exteroceptive")
+#@hydra.main(config_path="../../../config", config_name="ravdess_exteroceptive")
 def main(cfg: DictConfig) -> None:
     training_dataset, testing_dataset = util.load_preprocessed_dataset(cfg=cfg)
     input_dims: dict = util.get_modality_input_dimensions_from_data(
