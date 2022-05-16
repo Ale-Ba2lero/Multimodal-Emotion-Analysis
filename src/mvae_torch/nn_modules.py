@@ -101,7 +101,7 @@ class EmotionEncoder(nn.Module):
         self.z_dim = z_dim
 
     def forward(self, emotion):
-        emotion = torch.stack([F.one_hot(emo, self.input_dim) for emo in emotion])
+        emotion = torch.nn.functional.one_hot(emotion, num_classes=self.input_dim)
         hidden = self.net(emotion.to(torch.float64))
         z_loc = self.z_loc_layer(hidden)
         z_scale = torch.exp(self.z_scale_layer(hidden))

@@ -5,16 +5,13 @@ from typing import Tuple, List, Generator
 #import hydra
 import numpy
 import torch
-import tqdm
+from tqdm import tqdm
 from torch.utils.data import Dataset, DataLoader
 
 import torch_mvae_util
 import multimodal_vae  
 import nn_modules
 from config_args import ConfigModelArgs, ConfigTrainArgs
-
-
-_logger = logging.getLogger(__name__)
 
 
 def build_model(
@@ -149,16 +146,16 @@ def train(
 
     training_losses: dict = {'total_loss': [], 'multimodal_loss':[], 'faces_loss':[], 'emotions_loss':[]}
     # Training loop
-    for epoch_num in range(num_epochs):
+    for epoch_num in tqdm(range(num_epochs)):
         # Initialize loss accumulator and the progress bar
         epoch_losses: dict = {'total_loss': [], 'multimodal_loss':[], 'faces_loss':[], 'emotions_loss':[]}
-        progress_bar = tqdm.tqdm(data_loader)
+        #progress_bar = tqdm.tqdm(data_loader)
         annealing_beta = next(annealing_beta_generator)
-        print('---- Epoch: ', epoch_num, '/', num_epochs, ' ----')
+        #print('---- Epoch: ', epoch_num + 1, '/', num_epochs, ' ----')
 
         # Do a training epoch over each mini-batch returned
         #   by the data loader
-        for sample in progress_bar:
+        for sample in data_loader:
             faces, emotions = sample['image'], sample['cat']
             # If on GPU put the mini-batch into CUDA memory
             if use_cuda:

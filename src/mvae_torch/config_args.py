@@ -1,17 +1,17 @@
 class ConfigModelArgs:
-    cat_dim=8
+    cat_dim= 8
     img_size= 64
     z_dim= 256
-    hidden_dim= 512
+    hidden_dim= 256
     loss_weights = {'face': 1.0,'emotion': 1.0}
     expert_type= "moe"
     dataset_path= '/home/studenti/ballerini/datasets/RAVDESS_frames_ds'
 
 
 class ConfigTrainArgs:
-    learning_rate= 0.0001
+    learning_rate= 0.00005
     optim_betas= [ 0.95, 0.98 ]
-    num_epochs= 10
+    num_epochs= 5
     batch_size= 32
     checkpoint_every= 20
     checkpoint_path= "./"

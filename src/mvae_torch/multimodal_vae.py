@@ -55,9 +55,11 @@ class MultimodalVariationalAutoencoder(torch.nn.Module):
             faces_reconstruction_loss: torch.Tensor = torch_functional.mse_loss(faces_reconstruction, faces)
         else:
             faces_reconstruction_loss: torch.Tensor = torch.Tensor([0.0])
+                
         if emotions is not None:
+            emotions = torch.nn.functional.one_hot(emotions, num_classes=8)
             emotions_reconstruction_loss: torch.Tensor = torch_functional.mse_loss(
-                torch.argmax(emotions_reconstruction, 1).to(torch.double), 
+                emotions_reconstruction.to(torch.double), 
                 emotions.to(torch.double)
             )
         else:
@@ -132,7 +134,7 @@ class MultimodalVariationalAutoencoder(torch.nn.Module):
 
         if emotions is not None:
             emotion_z_loc, emotion_z_scale = self._emotion_encoder.forward(emotions)
-
+            
             z_loc = torch.cat((z_loc, emotion_z_loc.unsqueeze(0)), dim=0)
             z_scale = torch.cat((z_scale, emotion_z_scale.unsqueeze(0)), dim=0)
 
