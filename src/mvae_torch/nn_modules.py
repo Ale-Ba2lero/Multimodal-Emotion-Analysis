@@ -4,37 +4,42 @@ import torch.nn.functional as F
 
 
 class ImageEncoder(nn.Module):
-    def __init__(self, z_dim=64, ch=64, scale=2):
+    def __init__(self, z_dim=64, hidden_dim=512, ch=64):
         super(ImageEncoder, self).__init__()
         self.ch = ch
         self.z_dim = z_dim
         self.features_output = self.ch * 8 * 2 * 2
         
-        # input = 64 * 64
+        # input image size = 64 * 64
         self.features = nn.Sequential(
-            nn.Conv2d(3, ch, 3, 1, 1, bias=False), nn.BatchNorm2d(ch), nn.ReLU(),
-            nn.MaxPool2d(scale, scale), # 32
-            nn.Conv2d(ch, ch * 2, 3, 1, 1, bias=False), nn.BatchNorm2d(ch * 2), nn.ReLU(),
-            nn.MaxPool2d(scale, scale), # 16
-            nn.Conv2d(ch * 2, ch * 4, 3, 1, 1, bias=False), nn.BatchNorm2d(ch * 4), nn.ReLU(),
-            nn.MaxPool2d(scale, scale), # 8
-            nn.Conv2d(ch * 4, ch * 8, 3, 1, 1, bias=False), nn.BatchNorm2d(ch * 8), nn.ReLU(),
-            nn.MaxPool2d(scale, scale), # 4
-            nn.Conv2d(ch * 8, ch * 8, 3, 1, 1, bias=False), nn.BatchNorm2d(ch * 8), nn.ReLU(),
-            nn.MaxPool2d(scale, scale), # 2
+            nn.Conv2d(3, ch, 3, 1, 1, bias=False), 
+            nn.BatchNorm2d(ch), nn.ReLU(),
+            nn.MaxPool2d(2, 2), # img size = 32 * 32
+            nn.Conv2d(ch, ch * 2, 3, 1, 1, bias=False), 
+            nn.BatchNorm2d(ch * 2), nn.ReLU(),
+            nn.MaxPool2d(2, 2), # img size = 16 * 16
+            nn.Conv2d(ch * 2, ch * 4, 3, 1, 1, bias=False), 
+            nn.BatchNorm2d(ch * 4), nn.ReLU(),
+            nn.MaxPool2d(2, 2), # img size = 8 * 8
+            nn.Conv2d(ch * 4, ch * 8, 3, 1, 1, bias=False), 
+            nn.BatchNorm2d(ch * 8), nn.ReLU(),
+            nn.MaxPool2d(2, 2), # img size = 4 * 4
+            nn.Conv2d(ch * 8, ch * 8, 3, 1, 1, bias=False), 
+            nn.BatchNorm2d(ch * 8), nn.ReLU(),
+            nn.MaxPool2d(2, 2), # img size = 2 * 2
         )
                            
         self.z_loc_layer = nn.Sequential(
-            nn.Linear(self.features_output, 256),
-            Swish(),
+            nn.Linear(self.features_output, hidden_dim),
+            nn.ReLU(),
             nn.Dropout(p=0.1),
-            nn.Linear(256, z_dim))
+            nn.Linear(hidden_dim, z_dim))
         
         self.z_scale_layer = nn.Sequential(
-            nn.Linear(self.features_output, 256),
-            Swish(),
+            nn.Linear(self.features_output, hidden_dim),
+            nn.ReLU(),
             nn.Dropout(p=0.1),
-            nn.Linear(256, z_dim))
+            nn.Linear(hidden_dim, z_dim))
         
 
     def forward(self, image):
@@ -46,26 +51,30 @@ class ImageEncoder(nn.Module):
     
     
 class ImageDecoder(nn.Module):
-    def __init__(self, z_dim=64, ch=64, scale=2):
+    def __init__(self, z_dim=64, hidden_dim=512, ch=64):
         super(ImageDecoder, self).__init__()
         
         self.ch = ch
         
         self.upsample = nn.Sequential(
             nn.Linear(z_dim, ch * 8 * 2 * 2),
-            Swish())
+            nn.ReLU())
         
         self.hallucinate = nn.Sequential(
-            nn.Conv2d(ch * 8, ch * 8, 3, 1, 1, bias=False), nn.BatchNorm2d(ch * 8), nn.ReLU(),
-            nn.Upsample(scale_factor = scale, mode = "nearest"),
-            nn.Conv2d(ch * 8, ch * 4, 3, 1, 1, bias=False), nn.BatchNorm2d(ch * 4), nn.ReLU(),
-            nn.Upsample(scale_factor = scale, mode = "nearest"),
-            nn.Conv2d(ch * 4, ch * 2, 3, 1, 1, bias=False), nn.BatchNorm2d(ch * 2), nn.ReLU(),
-            nn.Upsample(scale_factor = scale, mode = "nearest"),
-            nn.Conv2d(ch * 2, ch, 3, 1, 1, bias=False), nn.BatchNorm2d(ch), nn.ReLU(),
-            nn.Upsample(scale_factor = scale, mode = "nearest"),
+            nn.Conv2d(ch * 8, ch * 8, 3, 1, 1, bias=False), 
+            nn.BatchNorm2d(ch * 8), nn.ReLU(),
+            nn.Upsample(scale_factor = 2, mode = "nearest"),
+            nn.Conv2d(ch * 8, ch * 4, 3, 1, 1, bias=False), 
+            nn.BatchNorm2d(ch * 4), nn.ReLU(),
+            nn.Upsample(scale_factor = 2, mode = "nearest"),
+            nn.Conv2d(ch * 4, ch * 2, 3, 1, 1, bias=False), 
+            nn.BatchNorm2d(ch * 2), nn.ReLU(),
+            nn.Upsample(scale_factor = 2, mode = "nearest"),
+            nn.Conv2d(ch * 2, ch, 3, 1, 1, bias=False), 
+            nn.BatchNorm2d(ch), nn.ReLU(),
+            nn.Upsample(scale_factor = 2, mode = "nearest"),
             nn.Conv2d(ch, 3, 3, 1, 1),
-            nn.Upsample(scale_factor = scale, mode = "nearest"))
+            nn.Upsample(scale_factor = 2, mode = "nearest"))
 
     def forward(self, z):
         z = self.upsample(z)
@@ -75,20 +84,20 @@ class ImageDecoder(nn.Module):
 
 
 class EmotionEncoder(nn.Module):
-    def __init__(self, z_dim, input_dim, use_cuda=True):
+    def __init__(self, input_dim, z_dim=64, hidden_dim=512, use_cuda=True):
         super(EmotionEncoder, self).__init__()
         self.input_dim = input_dim
-        self.net = nn.Linear(input_dim, 256)
+        self.net = nn.Linear(input_dim, hidden_dim)
         
         self.z_loc_layer = nn.Sequential(
-            nn.Linear(256, 256),
-            Swish(),
-            nn.Linear(256, z_dim))
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, z_dim))
         
         self.z_scale_layer = nn.Sequential(
-            nn.Linear(256, 256),
-            Swish(),
-            nn.Linear(256, z_dim))
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, z_dim))
         self.z_dim = z_dim
 
     def forward(self, emotion):
@@ -100,12 +109,12 @@ class EmotionEncoder(nn.Module):
 
 
 class EmotionDecoder(nn.Module):
-    def __init__(self, z_dim, output_dim):
+    def __init__(self, output_dim, z_dim=64, hidden_dim=512, use_cuda=True):
         super(EmotionDecoder, self).__init__()
         self.net = nn.Sequential(
-            nn.Linear(z_dim, 256),
-            Swish(),
-            nn.Linear(256, output_dim),
+            nn.Linear(hidden_dim, 256),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, output_dim),
             nn.Softmax(dim=0)
         )
         

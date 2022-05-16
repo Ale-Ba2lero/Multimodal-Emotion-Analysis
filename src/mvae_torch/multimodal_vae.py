@@ -6,31 +6,26 @@ import torch.nn.functional as torch_functional
 
 from torch_mvae_util import Expert
 
-
-class ExteroceptiveMultimodalVariationalAutoencoder(torch.nn.Module):
+class MultimodalVariationalAutoencoder(torch.nn.Module):
 
     def __init__(
             self,
             face_encoder: torch.nn.Module,
             face_decoder: torch.nn.Module,
-            voice_encoder: torch.nn.Module,
-            voice_decoder: torch.nn.Module,
-            va_encoder: torch.nn.Module,
-            va_decoder: torch.nn.Module,
+            emotion_encoder: torch.nn.Module,
+            emotion_decoder: torch.nn.Module,
             loss_weights: dict,
             expert: Expert,
             latent_space_dim: int,
             use_cuda: bool = False
     ) -> None:
-        super(ExteroceptiveMultimodalVariationalAutoencoder, self).__init__()
-        self._logger = logging.getLogger(ExteroceptiveMultimodalVariationalAutoencoder.__name__)
+        super(MultimodalVariationalAutoencoder, self).__init__()
+        self._logger = logging.getLogger(MultimodalVariationalAutoencoder.__name__)
 
         self._face_encoder: torch.nn.Module = face_encoder
         self._face_decoder: torch.nn.Module = face_decoder
-        self._voice_encoder: torch.nn.Module = voice_encoder
-        self._voice_decoder: torch.nn.Module = voice_decoder
-        self._va_encoder: torch.nn.Module = va_encoder
-        self._va_decoder: torch.nn.Module = va_decoder
+        self._emotion_encoder: torch.nn.Module = emotion_encoder
+        self._emotion_decoder: torch.nn.Module = emotion_decoder
 
         self._loss_weights: dict = loss_weights
         self._expert: Expert = expert
@@ -44,11 +39,9 @@ class ExteroceptiveMultimodalVariationalAutoencoder(torch.nn.Module):
     def loss_function(
             self,
             faces: torch.Tensor,
-            voices: torch.Tensor,
-            annotations: torch.Tensor,
+            emotions: torch.Tensor,
             faces_reconstruction: torch.Tensor,
-            voices_reconstruction: torch.Tensor,
-            annotations_reconstruction: torch.Tensor,
+            emotions_reconstruction: torch.Tensor,
             z_loc: torch.Tensor,
             z_scale: torch.Tensor,
             beta: float
@@ -62,27 +55,20 @@ class ExteroceptiveMultimodalVariationalAutoencoder(torch.nn.Module):
             faces_reconstruction_loss: torch.Tensor = torch_functional.mse_loss(faces_reconstruction, faces)
         else:
             faces_reconstruction_loss: torch.Tensor = torch.Tensor([0.0])
-        if voices is not None:
-            voices_reconstruction_loss: torch.Tensor = torch_functional.mse_loss(voices_reconstruction, voices)
+        if emotions is not None:
+            emotions_reconstruction_loss: torch.Tensor = torch_functional.mse_loss(emotions_reconstruction, emotions)
         else:
-            voices_reconstruction_loss: torch.Tensor = torch.Tensor([0.0])
-        if annotations is not None:
-            annotations_reconstruction_loss: torch.Tensor = torch_functional.mse_loss(
-                annotations_reconstruction, annotations
-            )
-        else:
-            annotations_reconstruction_loss: torch.Tensor = torch.Tensor([0.0])
+            emotions_reconstruction_loss: torch.Tensor = torch.Tensor([0.0])
+        
 
         if self.use_cuda:
             faces_reconstruction_loss = faces_reconstruction_loss.cuda()
-            voices_reconstruction_loss = voices_reconstruction_loss.cuda()
-            annotations_reconstruction_loss = annotations_reconstruction_loss.cuda()
+            emotions_reconstruction_loss = emotions_reconstruction_loss.cuda()
 
         faces_reconstruction_loss = self._loss_weights["face"] * faces_reconstruction_loss
-        voices_reconstruction_loss = self._loss_weights["voice"] * voices_reconstruction_loss
-        annotations_reconstruction_loss = self._loss_weights["va"] * annotations_reconstruction_loss
+        emotions_reconstruction_loss = self._loss_weights["emotion"] * emotions_reconstruction_loss
 
-        reconstruction_loss = faces_reconstruction_loss + voices_reconstruction_loss + annotations_reconstruction_loss
+        reconstruction_loss = faces_reconstruction_loss + emotions_reconstruction_loss
 
         # Calculate the KLD loss
         log_var = torch.log(torch.square(z_scale))
@@ -95,22 +81,18 @@ class ExteroceptiveMultimodalVariationalAutoencoder(torch.nn.Module):
             "reconstruction_loss": reconstruction_loss,
             "kld_loss": kld_loss,
             "faces_reconstruction_loss": faces_reconstruction_loss,
-            "voices_reconstruction_loss": voices_reconstruction_loss,
-            "annotations_reconstruction_loss": annotations_reconstruction_loss
+            "emotions_reconstruction_loss": voices_reconstruction_loss
         }
 
     def _extract_batch_size_from_data(
             self,
             faces: torch.Tensor = None,
-            voices: torch.Tensor = None,
-            annotations: torch.Tensor = None
+            emotions: torch.Tensor = None
     ) -> int:
         if faces is not None:
             batch_size = faces.shape[0]
         elif voices is not None:
-            batch_size = voices.shape[0]
-        elif annotations is not None:
-            batch_size = annotations.shape[0]
+            batch_size = emotions.shape[0]
         else:
             batch_size = 0
 
@@ -119,8 +101,7 @@ class ExteroceptiveMultimodalVariationalAutoencoder(torch.nn.Module):
     def infer_latent(
             self,
             faces: torch.Tensor,
-            voices: torch.Tensor,
-            annotations: torch.Tensor,
+            emotions: torch.Tensor
     ) -> Tuple[torch.Tensor, ...]:
         # Use the encoders to get the parameters used to define q(z|x).
         # Initialize the prior expert.
@@ -129,8 +110,7 @@ class ExteroceptiveMultimodalVariationalAutoencoder(torch.nn.Module):
         #   the Gaussians together.
         batch_size: int = self._extract_batch_size_from_data(
             faces=faces,
-            voices=voices,
-            annotations=annotations
+            emotions=emotions
         )
 
         z_loc, z_scale = (
@@ -148,16 +128,10 @@ class ExteroceptiveMultimodalVariationalAutoencoder(torch.nn.Module):
             z_scale = torch.cat((z_scale, face_z_scale.unsqueeze(0)), dim=0)
 
         if voices is not None:
-            voice_z_loc, voice_z_scale = self._voice_encoder.forward(voices)
+            emotion_z_loc, emotion_z_scale = self._emotion_encoder.forward(emotions)
 
-            z_loc = torch.cat((z_loc, voice_z_loc.unsqueeze(0)), dim=0)
-            z_scale = torch.cat((z_scale, voice_z_scale.unsqueeze(0)), dim=0)
-
-        if annotations is not None:
-            va_z_loc, va_z_scale = self._va_encoder.forward(annotations)
-
-            z_loc = torch.cat((z_loc, va_z_loc.unsqueeze(0)), dim=0)
-            z_scale = torch.cat((z_scale, va_z_scale.unsqueeze(0)), dim=0)
+            z_loc = torch.cat((z_loc, emotion_z_loc.unsqueeze(0)), dim=0)
+            z_scale = torch.cat((z_scale, emotion_z_scale.unsqueeze(0)), dim=0)
 
         # Give the inferred parameters to the expert to arrive at a unique decision
         z_loc_expert, z_scale_expert = self._expert(z_loc, z_scale)
@@ -177,17 +151,15 @@ class ExteroceptiveMultimodalVariationalAutoencoder(torch.nn.Module):
 
     def generate(self, latent_sample: torch.Tensor) -> Tuple[torch.Tensor, ...]:
         face_reconstruction = self._face_decoder.forward(latent_sample)
-        audio_reconstruction = self._voice_decoder.forward(latent_sample)
-        annotation_reconstruction = self._va_decoder.forward(latent_sample)
+        emotion_reconstruction = self._emotions_decoder.forward(latent_sample)
 
-        return face_reconstruction, audio_reconstruction, annotation_reconstruction
+        return face_reconstruction, emotions_reconstruction
 
-    def forward(self, faces=None, voices=None, annotations=None) -> Tuple[torch.Tensor, ...]:
+    def forward(self, faces=None, emotions=None) -> Tuple[torch.Tensor, ...]:
         # Infer the latent distribution parameters
         z_loc_expert, z_scale_expert, _, _ = self.infer_latent(
             faces=faces,
-            voices=voices,
-            annotations=annotations,
+            emotions=emotions
         )
 
         # Sample from the latent space
@@ -197,8 +169,8 @@ class ExteroceptiveMultimodalVariationalAutoencoder(torch.nn.Module):
         )
 
         # Reconstruct inputs based on that Gaussian sample
-        face_reconstruction, audio_reconstruction, annotation_reconstruction = self.generate(
+        face_reconstruction, emotions_reconstruction = self.generate(
             latent_sample=latent_sample
         )
 
-        return face_reconstruction, audio_reconstruction, annotation_reconstruction, z_loc_expert, z_scale_expert
+        return face_reconstruction, emotions_reconstruction, z_loc_expert, z_scale_expert

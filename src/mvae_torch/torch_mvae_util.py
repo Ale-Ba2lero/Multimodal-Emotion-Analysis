@@ -13,28 +13,12 @@ import numpy.random
 import omegaconf
 import torch
 import tqdm
-from omegaconf import DictConfig
+
 from torch.utils.data import Dataset
 
+from config_args import ConfigTrainArgs
+
 #from dataset.iemocap.iemocap_enrich import LoadUtils
-
-
-def get_modality_input_dimensions_from_data(dataset: Dataset, modality: str) -> Optional[dict]:
-    face_data, emocat_data = dataset[0]
-
-    if modality == "cnn":
-        # The input dims are hardwired into the CNN components unfortunately...
-        input_dims: Optional[dict] = None
-    elif modality == "vrnn" or modality == "plain":
-        input_dims: Optional[dict] = {
-            "face": face_data.shape[-1],
-            "emocat": emocat_data.shape[-1]
-        }
-    else:
-        raise ValueError(f"Unknown model modality '{modality}'")
-
-    return input_dims
-
 
 class AnnealingBetaGenerator(object):
     @staticmethod
@@ -77,23 +61,23 @@ class AnnealingBetaGenerator(object):
 
 
 class AnnealingBetaGeneratorFactory(object):
-    def __init__(self, annealing_type: str, training_config: omegaconf.DictConfig):
+    def __init__(self, annealing_type: str, training_config: ConfigTrainArgs):
         self._annealing_type: str = annealing_type
-        self._training_config: omegaconf.DictConfig = training_config
+        self._training_config: ConfigTrainArgs = training_config
 
     def get_annealing_beta_generator(self, num_iterations: int) -> Generator[float, None, None]:
         if self._annealing_type == "cyclical":
             return AnnealingBetaGenerator.cyclical_annealing_beta_generator(
                 num_iterations=num_iterations,
-                min_beta=self._training_config.cyclical_annealing.min_beta,
-                max_beta=self._training_config.cyclical_annealing.max_beta,
-                num_cycles=self._training_config.cyclical_annealing.num_cycles,
-                annealing_percentage=self._training_config.cyclical_annealing.annealing_percentage,
+                min_beta=self._training_config.cyclical_annealing["min_beta"],
+                max_beta=self._training_config.cyclical_annealing["max_beta"],
+                num_cycles=self._training_config.cyclical_annealing["num_cycles"],
+                annealing_percentage=self._training_config.cyclical_annealing["annealing_percentage"],
             )
         elif self._annealing_type == "linear":
             return AnnealingBetaGenerator.linear_annealing_beta_generator(
-                min_beta=self._training_config.linear_annealing.min_beta,
-                max_beta=self._training_config.linear_annealing.max_beta,
+                min_beta=self._training_config.linear_annealing["min_beta"],
+                max_beta=self._training_config.linear_annealing["max_beta"],
                 num_epochs=num_iterations
             )
         elif self._annealing_type == "static":
