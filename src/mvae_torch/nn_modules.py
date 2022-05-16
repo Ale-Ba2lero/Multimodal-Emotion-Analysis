@@ -112,7 +112,7 @@ class EmotionDecoder(nn.Module):
     def __init__(self, output_dim, z_dim=64, hidden_dim=512, use_cuda=True):
         super(EmotionDecoder, self).__init__()
         self.net = nn.Sequential(
-            nn.Linear(hidden_dim, 256),
+            nn.Linear(z_dim, hidden_dim),
             nn.ReLU(),
             nn.Linear(hidden_dim, output_dim),
             nn.Softmax(dim=0)

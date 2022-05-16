@@ -98,7 +98,7 @@ def eval_model_training(
         faces=faces,
         emotions=emotions,
         faces_reconstruction=face_reconstruction,
-        emotion_reconstruction=emotion_reconstruction,
+        emotions_reconstruction=emotion_reconstruction,
         z_loc=z_loc_expert,
         z_scale=z_scale_expert,
         beta=beta
@@ -147,13 +147,14 @@ def train(
         num_iterations=num_epochs
     )
 
-    training_losses: dict = {'total_loss': [], 'multimodal_loss':[], 'face_loss':[], 'emotions_loss':[]}
+    training_losses: dict = {'total_loss': [], 'multimodal_loss':[], 'faces_loss':[], 'emotions_loss':[]}
     # Training loop
     for epoch_num in range(num_epochs):
         # Initialize loss accumulator and the progress bar
-        epoch_losses: dict = {'total_loss': [], 'multimodal_loss':[], 'face_loss':[], 'emotions_loss':[]}
+        epoch_losses: dict = {'total_loss': [], 'multimodal_loss':[], 'faces_loss':[], 'emotions_loss':[]}
         progress_bar = tqdm.tqdm(data_loader)
         annealing_beta = next(annealing_beta_generator)
+        print('---- Epoch: ', epoch_num, '/', num_epochs, ' ----')
 
         # Do a training epoch over each mini-batch returned
         #   by the data loader
@@ -207,10 +208,10 @@ def train(
         
         # Report training diagnostics -  TRIMODAL
         print(
-            f"Mean epoch loss: {training_losses['total_loss'][-1]:.5}; "
-            f"Mean all modalities loss: {training_losses['multimodal_loss'][-1]:.5}; "
-            f"Mean faces loss: {training_losses['faces_loss'][-1]:.5}; "
-            f"Mean emotions loss: {training_losses['emotions_loss'][-1]:.5}; "
+            f"Mean total loss: {training_losses['total_loss'][-1]:.5};\n"
+            f"Mean all modalities loss: {training_losses['multimodal_loss'][-1]:.5};\n"
+            f"Mean faces loss: {training_losses['faces_loss'][-1]:.5};\n"
+            f"Mean emotions loss: {training_losses['emotions_loss'][-1]:.5};\n"
         )
 
         if checkpoint_every is not None:
