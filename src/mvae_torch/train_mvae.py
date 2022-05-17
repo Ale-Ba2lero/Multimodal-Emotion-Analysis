@@ -39,13 +39,13 @@ def build_model(
         input_dim=cat_dim,
         hidden_dim=hidden_dim,
         z_dim=latent_space_dim,
-        use_cuda = use_cuda
+        use_cuda=use_cuda
     )
     emocat_decoder: torch.nn.Module = nn_modules.EmotionDecoder(
         output_dim=cat_dim,
         hidden_dim=hidden_dim,
         z_dim=latent_space_dim,
-        use_cuda = use_cuda
+        use_cuda=use_cuda
     )
 
     # Create the expert
@@ -109,7 +109,7 @@ def eval_model_training(
 
 def train(
         mvae_model: torch.nn.Module,
-        dataset: Dataset,
+        dataset_loader: DataLoader,
         learning_rate: float,
         optim_betas: Tuple[float, float],
         num_epochs: int,
@@ -130,12 +130,6 @@ def train(
     adam_args = {"lr": learning_rate, "betas": optim_betas}
     optimizer = torch.optim.Adam(params=mvae_model.parameters(), **adam_args)
 
-    # Create data loader
-    data_loader = DataLoader(
-        dataset=dataset,
-        batch_size=batch_size,
-        shuffle=True
-    )
     annealing_beta_gen_factory = torch_mvae_util.AnnealingBetaGeneratorFactory(
         annealing_type=cfg.annealing_type,
         training_config=cfg
@@ -149,13 +143,11 @@ def train(
     for epoch_num in tqdm(range(num_epochs)):
         # Initialize loss accumulator and the progress bar
         epoch_losses: dict = {'total_loss': [], 'multimodal_loss':[], 'faces_loss':[], 'emotions_loss':[]}
-        #progress_bar = tqdm.tqdm(data_loader)
         annealing_beta = next(annealing_beta_generator)
-        #print('---- Epoch: ', epoch_num + 1, '/', num_epochs, ' ----')
 
         # Do a training epoch over each mini-batch returned
         #   by the data loader
-        for sample in data_loader:
+        for sample in dataset_loader:
             faces, emotions = sample['image'], sample['cat']
             # If on GPU put the mini-batch into CUDA memory
             if use_cuda:
@@ -163,7 +155,7 @@ def train(
                     faces = faces.cuda()
                 if emotions is not None:
                     emotions = emotions.cuda()
-
+            
             losses: dict = eval_model_training(
                 model=mvae_model,
                 optimizer=optimizer,
@@ -183,7 +175,6 @@ def train(
             )
             faces_loss = float(losses["total_loss"].cpu().detach().numpy())
             epoch_losses['faces_loss'].append(faces_loss)
-
             losses: dict = eval_model_training(
                 model=mvae_model,
                 optimizer=optimizer,
@@ -193,11 +184,11 @@ def train(
             )
             emotions_loss = float(losses["total_loss"].cpu().detach().numpy())
             epoch_losses['emotions_loss'].append(emotions_loss)
-
+            
             epoch_losses['total_loss'].append(multimodal_loss)
             epoch_losses['total_loss'].append(faces_loss)
             epoch_losses['total_loss'].append(emotions_loss)
-
+            
         training_losses['total_loss'].append(numpy.nanmean(epoch_losses['total_loss']))
         training_losses['multimodal_loss'].append(numpy.nanmean(epoch_losses['multimodal_loss']))
         training_losses['faces_loss'].append(numpy.nanmean(epoch_losses['faces_loss']))

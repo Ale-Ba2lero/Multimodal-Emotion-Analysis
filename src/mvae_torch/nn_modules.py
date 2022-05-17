@@ -12,20 +12,19 @@ class ImageEncoder(nn.Module):
         
         # input image size = 64 * 64
         self.features = nn.Sequential(
-            nn.Conv2d(3, ch, 3, 1, 1, bias=False), 
-            nn.BatchNorm2d(ch), nn.ReLU(),
+            nn.Conv2d(3, ch, 3, 1, 1, bias=False), nn.BatchNorm2d(ch), nn.ReLU(),
             nn.MaxPool2d(2, 2), # img size = 32 * 32
-            nn.Conv2d(ch, ch * 2, 3, 1, 1, bias=False), 
-            nn.BatchNorm2d(ch * 2), nn.ReLU(),
+            
+            nn.Conv2d(ch, ch * 2, 3, 1, 1, bias=False), nn.BatchNorm2d(ch * 2), nn.ReLU(),
             nn.MaxPool2d(2, 2), # img size = 16 * 16
-            nn.Conv2d(ch * 2, ch * 4, 3, 1, 1, bias=False), 
-            nn.BatchNorm2d(ch * 4), nn.ReLU(),
+            
+            nn.Conv2d(ch * 2, ch * 4, 3, 1, 1, bias=False), nn.BatchNorm2d(ch * 4), nn.ReLU(),
             nn.MaxPool2d(2, 2), # img size = 8 * 8
-            nn.Conv2d(ch * 4, ch * 8, 3, 1, 1, bias=False), 
-            nn.BatchNorm2d(ch * 8), nn.ReLU(),
+            
+            nn.Conv2d(ch * 4, ch * 8, 3, 1, 1, bias=False), nn.BatchNorm2d(ch * 8), nn.ReLU(),
             nn.MaxPool2d(2, 2), # img size = 4 * 4
-            nn.Conv2d(ch * 8, ch * 8, 3, 1, 1, bias=False), 
-            nn.BatchNorm2d(ch * 8), nn.ReLU(),
+            
+            nn.Conv2d(ch * 8, ch * 8, 3, 1, 1, bias=False), nn.BatchNorm2d(ch * 8), nn.ReLU(),
             nn.MaxPool2d(2, 2), # img size = 2 * 2
         )
                            
@@ -61,20 +60,20 @@ class ImageDecoder(nn.Module):
             nn.ReLU())
         
         self.hallucinate = nn.Sequential(
-            nn.Conv2d(ch * 8, ch * 8, 3, 1, 1, bias=False), 
-            nn.BatchNorm2d(ch * 8), nn.ReLU(),
-            nn.Upsample(scale_factor = 2, mode = "nearest"),
-            nn.Conv2d(ch * 8, ch * 4, 3, 1, 1, bias=False), 
-            nn.BatchNorm2d(ch * 4), nn.ReLU(),
-            nn.Upsample(scale_factor = 2, mode = "nearest"),
-            nn.Conv2d(ch * 4, ch * 2, 3, 1, 1, bias=False), 
-            nn.BatchNorm2d(ch * 2), nn.ReLU(),
-            nn.Upsample(scale_factor = 2, mode = "nearest"),
-            nn.Conv2d(ch * 2, ch, 3, 1, 1, bias=False), 
-            nn.BatchNorm2d(ch), nn.ReLU(),
-            nn.Upsample(scale_factor = 2, mode = "nearest"),
+            nn.Conv2d(ch * 8, ch * 8, 3, 1, 1, bias=False), nn.BatchNorm2d(ch * 8), nn.ReLU(),
+            nn.Upsample(scale_factor = 2, mode = "nearest"), # img size = 4 * 4
+            
+            nn.Conv2d(ch * 8, ch * 4, 3, 1, 1, bias=False), nn.BatchNorm2d(ch * 4), nn.ReLU(),
+            nn.Upsample(scale_factor = 2, mode = "nearest"), # img size = 8 * 8
+            
+            nn.Conv2d(ch * 4, ch * 2, 3, 1, 1, bias=False),nn.BatchNorm2d(ch * 2), nn.ReLU(),
+            nn.Upsample(scale_factor = 2, mode = "nearest"), # img size = 16 * 16
+            
+            nn.Conv2d(ch * 2, ch, 3, 1, 1, bias=False), nn.BatchNorm2d(ch), nn.ReLU(),
+            nn.Upsample(scale_factor = 2, mode = "nearest"), # img size = 32 * 32
+            
             nn.Conv2d(ch, 3, 3, 1, 1),
-            nn.Upsample(scale_factor = 2, mode = "nearest"))
+            nn.Upsample(scale_factor = 2, mode = "nearest")) # img size = 64 * 64
 
     def forward(self, z):
         z = self.upsample(z)
@@ -114,8 +113,7 @@ class EmotionDecoder(nn.Module):
         self.net = nn.Sequential(
             nn.Linear(z_dim, hidden_dim),
             nn.ReLU(),
-            nn.Linear(hidden_dim, output_dim),
-            nn.Softmax(dim=0)
+            nn.Linear(hidden_dim, output_dim)
         )
         
     def forward(self, z):
