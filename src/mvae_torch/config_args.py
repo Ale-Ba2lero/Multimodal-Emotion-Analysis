@@ -11,7 +11,7 @@ class ConfigModelArgs:
 class ConfigTrainArgs:
     learning_rate= 0.00001
     optim_betas= [ 0.95, 0.98 ]
-    num_epochs= 20
+    num_epochs= 50
     batch_size= 32
     num_workers= 20
     checkpoint_every= 20
