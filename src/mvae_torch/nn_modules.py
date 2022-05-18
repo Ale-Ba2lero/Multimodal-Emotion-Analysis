@@ -8,7 +8,7 @@ class ImageEncoder(nn.Module):
         super(ImageEncoder, self).__init__()
         self.ch = ch
         self.z_dim = z_dim
-        self.features_output = self.ch * 8 * 4 * 4
+        self.features_output = self.ch * 8 * 2 * 2
         
         # input image size = 64 * 64
         self.features = nn.Sequential(
@@ -24,8 +24,9 @@ class ImageEncoder(nn.Module):
             nn.Conv2d(ch * 4, ch * 8, 3, 1, 1, bias=False), nn.BatchNorm2d(ch * 8), nn.ReLU(),
             nn.MaxPool2d(2, 2), # img size = 4 * 4
             
-            #nn.Conv2d(ch * 8, ch * 8, 3, 1, 1, bias=False), nn.BatchNorm2d(ch * 8), nn.ReLU(),
-            #nn.MaxPool2d(2, 2), # img size = 2 * 2
+            nn.Conv2d(ch * 8, ch * 8, 3, 1, 1, bias=False), nn.BatchNorm2d(ch * 8), nn.ReLU(),
+            nn.MaxPool2d(2, 2), # img size = 2 * 2
+            nn.Conv2d(ch * 8, ch * 8, 3, 1, 1, bias=True)
         )
                            
         self.z_loc_layer = nn.Sequential(
@@ -56,12 +57,12 @@ class ImageDecoder(nn.Module):
         self.ch = ch
         
         self.upsample = nn.Sequential(
-            nn.Linear(z_dim, ch * 8 * 4 * 4),
+            nn.Linear(z_dim, ch * 8 * 2 * 2),
             nn.ReLU())
         
         self.hallucinate = nn.Sequential(
-            #nn.Conv2d(ch * 8, ch * 8, 3, 1, 1, bias=False), nn.BatchNorm2d(ch * 8), nn.ReLU(),
-            #nn.Upsample(scale_factor = 2, mode = "nearest"), # img size = 4 * 4
+            nn.Conv2d(ch * 8, ch * 8, 3, 1, 1, bias=False), nn.BatchNorm2d(ch * 8), nn.ReLU(),
+            nn.Upsample(scale_factor = 2, mode = "nearest"), # img size = 4 * 4
 
             nn.Conv2d(ch * 8, ch * 4, 3, 1, 1, bias=False), nn.BatchNorm2d(ch * 4), nn.ReLU(),
             nn.Upsample(scale_factor = 2, mode = "nearest"), # img size = 8 * 8
@@ -72,12 +73,14 @@ class ImageDecoder(nn.Module):
             nn.Conv2d(ch * 2, ch, 3, 1, 1, bias=False), nn.BatchNorm2d(ch), nn.ReLU(),
             nn.Upsample(scale_factor = 2, mode = "nearest"), # img size = 32 * 32
             
-            nn.Conv2d(ch, 3, 3, 1, 1),
-            nn.Upsample(scale_factor = 2, mode = "nearest")) # img size = 64 * 64
+            nn.Conv2d(ch, 3, 3, 1, 1, bias=False),
+            nn.Upsample(scale_factor = 2, mode = "nearest"), # img size = 64 * 64
+            nn.Conv2d(3, 3, 3, 1, 1, bias=True),
+        ) 
 
     def forward(self, z):
         z = self.upsample(z)
-        z = z.view(-1, self.ch * 8, 4, 4)
+        z = z.view(-1, self.ch * 8, 2, 2)
         image = self.hallucinate(z)
         return image 
 

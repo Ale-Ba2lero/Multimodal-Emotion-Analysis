@@ -18,6 +18,7 @@ def build_model(
     cat_dim: int,
     latent_space_dim: int,
     hidden_dim: int,
+    num_channels: int,
     loss_weights: dict,
     expert_type: str,
     use_cuda: bool
@@ -27,11 +28,13 @@ def build_model(
     # Build the face modality components
     face_encoder: torch.nn.Module = nn_modules.ImageEncoder(
         hidden_dim=hidden_dim,
-        z_dim=latent_space_dim
+        z_dim=latent_space_dim,
+        ch=num_channels
     )
     face_decoder: torch.nn.Module = nn_modules.ImageDecoder(
         hidden_dim=hidden_dim,
-        z_dim=latent_space_dim
+        z_dim=latent_space_dim,
+        ch=num_channels
     )
 
     # Build the discrete emotion category modality components
