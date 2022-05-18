@@ -107,6 +107,14 @@ def eval_model_training(
     return loss
 
 
+class StatLoss:
+    def __init__(self):
+        self.total_loss = []
+        self.reconstruction_loss = []
+        self.kld_loss = []
+        self.faces_reconstruction_loss = []
+        self.emotions_reconstruction_loss = []
+
 def train(
         mvae_model: torch.nn.Module,
         dataset_loader: DataLoader,
@@ -138,11 +146,13 @@ def train(
         num_iterations=num_epochs
     )
 
-    training_losses: dict = {'total_loss': [], 'multimodal_loss':[], 'faces_loss':[], 'emotions_loss':[]}
+    training_losses:dict = {'multimodal_loss': StatLoss(), 'face_loss': StatLoss(), 'emotion_loss': StatLoss()}
     # Training loop
     for epoch_num in tqdm(range(num_epochs)):
         # Initialize loss accumulator and the progress bar
-        epoch_losses: dict = {'total_loss': [], 'multimodal_loss':[], 'faces_loss':[], 'emotions_loss':[]}
+        multimodal_loss = StatLoss()
+        face_loss = StatLoss()
+        emotion_loss = StatLoss()
         annealing_beta = next(annealing_beta_generator)
 
         # Do a training epoch over each mini-batch returned
@@ -156,50 +166,101 @@ def train(
                 if emotions is not None:
                     emotions = emotions.cuda()
             
-            losses: dict = eval_model_training(
+            m_losses: dict = eval_model_training(
                 model=mvae_model,
                 optimizer=optimizer,
                 beta=annealing_beta,
                 faces=faces,
                 emotions=emotions
             )
-            multimodal_loss = float(losses["total_loss"].cpu().detach().numpy())
-            epoch_losses['multimodal_loss'].append(multimodal_loss)
-            
-            losses: dict = eval_model_training(
+                
+            multimodal_loss.total_loss.append(float(m_losses["total_loss"].cpu().detach().numpy()))
+            multimodal_loss.reconstruction_loss.append(float(m_losses["reconstruction_loss"].cpu().detach().numpy()))
+            multimodal_loss.kld_loss.append(float(m_losses["kld_loss"].cpu().detach().numpy()))
+            multimodal_loss.faces_reconstruction_loss.append(float(m_losses["faces_reconstruction_loss"].cpu().detach().numpy()))
+            multimodal_loss.emotions_reconstruction_loss.append(float(m_losses["emotions_reconstruction_loss"].cpu().detach().numpy()))
+                        
+            f_losses: dict = eval_model_training(
                 model=mvae_model,
                 optimizer=optimizer,
                 beta=annealing_beta,
                 faces=faces,
                 emotions=None
             )
-            faces_loss = float(losses["total_loss"].cpu().detach().numpy())
-            epoch_losses['faces_loss'].append(faces_loss)
-            losses: dict = eval_model_training(
+                
+            face_loss.total_loss.append(float(f_losses["total_loss"].cpu().detach().numpy()))
+            face_loss.reconstruction_loss.append(float(f_losses["reconstruction_loss"].cpu().detach().numpy()))
+            face_loss.kld_loss.append(float(f_losses["kld_loss"].cpu().detach().numpy()))
+            face_loss.faces_reconstruction_loss.append(float(f_losses["faces_reconstruction_loss"].cpu().detach().numpy()))
+            face_loss.emotions_reconstruction_loss.append(float(f_losses["emotions_reconstruction_loss"].cpu().detach().numpy()))
+            
+            e_losses: dict = eval_model_training(
                 model=mvae_model,
                 optimizer=optimizer,
                 beta=annealing_beta,
                 faces=None,
                 emotions=emotions
             )
-            emotions_loss = float(losses["total_loss"].cpu().detach().numpy())
-            epoch_losses['emotions_loss'].append(emotions_loss)
-            
-            epoch_losses['total_loss'].append(multimodal_loss)
-            epoch_losses['total_loss'].append(faces_loss)
-            epoch_losses['total_loss'].append(emotions_loss)
-            
-        training_losses['total_loss'].append(numpy.nanmean(epoch_losses['total_loss']))
-        training_losses['multimodal_loss'].append(numpy.nanmean(epoch_losses['multimodal_loss']))
-        training_losses['faces_loss'].append(numpy.nanmean(epoch_losses['faces_loss']))
-        training_losses['emotions_loss'].append(numpy.nanmean(epoch_losses['emotions_loss']))
+                
+            emotion_loss.total_loss.append(float(e_losses["total_loss"].cpu().detach().numpy()))
+            emotion_loss.reconstruction_loss.append(float(e_losses["reconstruction_loss"].cpu().detach().numpy()))
+            emotion_loss.kld_loss.append(float(e_losses["kld_loss"].cpu().detach().numpy()))
+            emotion_loss.faces_reconstruction_loss.append(float(e_losses["faces_reconstruction_loss"].cpu().detach().numpy()))
+            emotion_loss.emotions_reconstruction_loss.append(float(e_losses["emotions_reconstruction_loss"].cpu().detach().numpy()))
         
-        # Report training diagnostics -  TRIMODAL
+        
+        training_losses['multimodal_loss'].total_loss.append(numpy.nanmean(multimodal_loss.total_loss))
+        training_losses['multimodal_loss'].reconstruction_loss.append(numpy.nanmean(multimodal_loss.reconstruction_loss))
+        training_losses['multimodal_loss'].kld_loss.append(numpy.nanmean(multimodal_loss.kld_loss))
+        training_losses['multimodal_loss'].faces_reconstruction_loss.append(numpy.nanmean(multimodal_loss.faces_reconstruction_loss))
+        training_losses['multimodal_loss'].emotions_reconstruction_loss.append(numpy.nanmean(multimodal_loss.emotions_reconstruction_loss))
+        
+        training_losses['face_loss'].total_loss.append(numpy.nanmean(face_loss.total_loss))
+        training_losses['face_loss'].reconstruction_loss.append(numpy.nanmean(face_loss.reconstruction_loss))
+        training_losses['face_loss'].kld_loss.append(numpy.nanmean(face_loss.kld_loss))
+        training_losses['face_loss'].faces_reconstruction_loss.append(numpy.nanmean(face_loss.faces_reconstruction_loss))
+        training_losses['face_loss'].emotions_reconstruction_loss.append(numpy.nanmean(face_loss.emotions_reconstruction_loss))
+        
+        training_losses['emotion_loss'].total_loss.append(numpy.nanmean(emotion_loss.total_loss))
+        training_losses['emotion_loss'].reconstruction_loss.append(numpy.nanmean(emotion_loss.reconstruction_loss))
+        training_losses['emotion_loss'].kld_loss.append(numpy.nanmean(emotion_loss.kld_loss))
+        training_losses['emotion_loss'].faces_reconstruction_loss.append(numpy.nanmean(emotion_loss.faces_reconstruction_loss))
+        training_losses['emotion_loss'].emotions_reconstruction_loss.append(numpy.nanmean(emotion_loss.emotions_reconstruction_loss))
+        
+        '''
         print(
             f"Mean total loss: {training_losses['total_loss'][-1]:.5};\n"
             f"Mean all modalities loss: {training_losses['multimodal_loss'][-1]:.5};\n"
             f"Mean faces loss: {training_losses['faces_loss'][-1]:.5};\n"
             f"Mean emotions loss: {training_losses['emotions_loss'][-1]:.5};\n"
+        )
+        ''' 
+        
+        print(
+            "Multimodal losses:\n"
+            f"Mean total loss: {training_losses['multimodal_loss'].total_loss[-1]:.5};\n"
+            f"Mean reconstruction loss: {training_losses['multimodal_loss'].reconstruction_loss[-1]:.5};\n"
+            f"Mean kld_loss loss: {training_losses['multimodal_loss'].kld_loss[-1]:.5};\n"
+            f"Mean faces_reconstruction loss: {training_losses['multimodal_loss'].faces_reconstruction_loss[-1]:.5};\n"
+            f"Mean emotions_reconstruction loss: {training_losses['multimodal_loss'].emotions_reconstruction_loss[-1]:.5};\n"
+        )
+        
+        print(
+            "Face losses:\n"
+            f"Mean total loss: {training_losses['face_loss'].total_loss[-1]:.5};\n"
+            f"Mean reconstruction loss: {training_losses['face_loss'].reconstruction_loss[-1]:.5};\n"
+            f"Mean kld_loss loss: {training_losses['face_loss'].kld_loss[-1]:.5};\n"
+            f"Mean faces_reconstruction loss: {training_losses['face_loss'].faces_reconstruction_loss[-1]:.5};\n"
+            f"Mean emotions_reconstruction loss: {training_losses['face_loss'].emotions_reconstruction_loss[-1]:.5};\n"
+        )
+        
+        print(
+            "Emotion losses:\n"
+            f"Mean total loss: {training_losses['emotion_loss'].total_loss[-1]:.5};\n"
+            f"Mean reconstruction loss: {training_losses['emotion_loss'].reconstruction_loss[-1]:.5};\n"
+            f"Mean kld_loss loss: {training_losses['emotion_loss'].kld_loss[-1]:.5};\n"
+            f"Mean faces_reconstruction loss: {training_losses['emotion_loss'].faces_reconstruction_loss[-1]:.5};\n"
+            f"Mean emotions_reconstruction loss: {training_losses['emotion_loss'].emotions_reconstruction_loss[-1]:.5};\n"
         )
 
         if checkpoint_every is not None:

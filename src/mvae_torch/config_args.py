@@ -1,19 +1,19 @@
 class ConfigModelArgs:
     cat_dim= 8
     img_size= 64
-    z_dim= 64
-    hidden_dim= 64
+    z_dim= 512
+    hidden_dim= 512
     loss_weights = {'face': 1.0,'emotion': 1.0}
     expert_type= "moe"
     dataset_path= '/home/studenti/ballerini/datasets/RAVDESS_frames_ds'
 
 
 class ConfigTrainArgs:
-    learning_rate= 0.00001
+    learning_rate= 0.0005
     optim_betas= [ 0.95, 0.98 ]
-    num_epochs= 50
+    num_epochs= 10
     batch_size= 32
-    num_workers= 20
+    num_workers= 25
     checkpoint_every= 20
     checkpoint_path= "./"
     save_model= True
