@@ -14,19 +14,23 @@ class ImageEncoder(nn.Module):
         self.features = nn.Sequential(
             nn.Conv2d(3, ch, 3, 1, 1, bias=False), nn.BatchNorm2d(ch), nn.ReLU(),
             nn.MaxPool2d(2, 2), # img size = 32 * 32
+            nn.Conv2d(ch, ch, 3, 1, 1, bias=False),nn.BatchNorm2d(ch), nn.ReLU(),
             
             nn.Conv2d(ch, ch * 2, 3, 1, 1, bias=False), nn.BatchNorm2d(ch * 2), nn.ReLU(),
             nn.MaxPool2d(2, 2), # img size = 16 * 16
+            nn.Conv2d(ch*2, ch * 2, 3, 1, 1, bias=False),nn.BatchNorm2d(ch * 2), nn.ReLU(),
             
             nn.Conv2d(ch * 2, ch * 4, 3, 1, 1, bias=False), nn.BatchNorm2d(ch * 4), nn.ReLU(),
             nn.MaxPool2d(2, 2), # img size = 8 * 8
+            nn.Conv2d(ch * 4, ch * 4, 3, 1, 1, bias=False), nn.BatchNorm2d(ch * 4), nn.ReLU(),
             
             nn.Conv2d(ch * 4, ch * 8, 3, 1, 1, bias=False), nn.BatchNorm2d(ch * 8), nn.ReLU(),
             nn.MaxPool2d(2, 2), # img size = 4 * 4
+            nn.Conv2d(ch*8, ch * 8, 3, 1, 1, bias=False), nn.BatchNorm2d(ch * 8), nn.ReLU(),
             
             nn.Conv2d(ch * 8, ch * 8, 3, 1, 1, bias=False), nn.BatchNorm2d(ch * 8), nn.ReLU(),
             nn.MaxPool2d(2, 2), # img size = 2 * 2
-            nn.Conv2d(ch * 8, ch * 8, 3, 1, 1, bias=True)
+            nn.Conv2d(ch * 8, ch * 8, 3, 1, 1, bias=False), nn.BatchNorm2d(ch * 8), nn.ReLU(),
         )
                            
         self.z_loc_layer = nn.Sequential(
@@ -63,17 +67,21 @@ class ImageDecoder(nn.Module):
         self.hallucinate = nn.Sequential(
             nn.Conv2d(ch * 8, ch * 8, 3, 1, 1, bias=False), nn.BatchNorm2d(ch * 8), nn.ReLU(),
             nn.Upsample(scale_factor = 2, mode = "nearest"), # img size = 4 * 4
+            nn.Conv2d(ch*8, ch * 8, 3, 1, 1, bias=False), nn.BatchNorm2d(ch * 8), nn.ReLU(),
 
             nn.Conv2d(ch * 8, ch * 4, 3, 1, 1, bias=False), nn.BatchNorm2d(ch * 4), nn.ReLU(),
             nn.Upsample(scale_factor = 2, mode = "nearest"), # img size = 8 * 8
+            nn.Conv2d(ch*4, ch * 4, 3, 1, 1, bias=False), nn.BatchNorm2d(ch * 4), nn.ReLU(),
             
             nn.Conv2d(ch * 4, ch * 2, 3, 1, 1, bias=False),nn.BatchNorm2d(ch * 2), nn.ReLU(),
             nn.Upsample(scale_factor = 2, mode = "nearest"), # img size = 16 * 16
+            nn.Conv2d(ch*2, ch * 2, 3, 1, 1, bias=False),nn.BatchNorm2d(ch * 2), nn.ReLU(),
             
             nn.Conv2d(ch * 2, ch, 3, 1, 1, bias=False), nn.BatchNorm2d(ch), nn.ReLU(),
             nn.Upsample(scale_factor = 2, mode = "nearest"), # img size = 32 * 32
+            nn.Conv2d(ch, ch, 3, 1, 1, bias=False), nn.BatchNorm2d(ch), nn.ReLU(),
             
-            nn.Conv2d(ch, 3, 3, 1, 1, bias=False),
+            nn.Conv2d(ch, 3, 3, 1, 1, bias=False), nn.BatchNorm2d(3), nn.ReLU(),
             nn.Upsample(scale_factor = 2, mode = "nearest"), # img size = 64 * 64
             nn.Conv2d(3, 3, 3, 1, 1, bias=True),
         ) 
