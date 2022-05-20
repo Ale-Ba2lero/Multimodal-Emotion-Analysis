@@ -57,9 +57,7 @@ class MultimodalVariationalAutoencoder(torch.nn.Module):
             faces_reconstruction_loss: torch.Tensor = torch.Tensor([0.0])
                 
         if emotions is not None:
-            emotions_reconstruction_loss: torch.Tensor = torch_functional.cross_entropy(
-                emotions_reconstruction, emotions
-            )
+            emotions_reconstruction_loss: torch.Tensor = torch_functional.cross_entropy(emotions_reconstruction, emotions)
         else:
             emotions_reconstruction_loss: torch.Tensor = torch.Tensor([0.0])
 
@@ -74,6 +72,7 @@ class MultimodalVariationalAutoencoder(torch.nn.Module):
 
         # Calculate the KLD loss
         log_var = torch.log(torch.square(z_scale))
+        #kld_loss = -0.5 * (1 + log_var - z_loc.pow(2) - log_var.exp()).mean()
         kld_loss = torch.mean(-0.5 * torch.sum(1 + log_var - z_loc ** 2 - log_var.exp(), dim=1), dim=0)
 
         total_loss = reconstruction_loss + beta * kld_loss
@@ -154,7 +153,7 @@ class MultimodalVariationalAutoencoder(torch.nn.Module):
             faces=faces,
             emotions=emotions
         )
-
+        
         # Sample from the latent space
         latent_sample: torch.Tensor = self.sample_latent(
             z_loc=z_loc_expert,

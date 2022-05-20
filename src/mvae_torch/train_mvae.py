@@ -24,7 +24,7 @@ def build_model(
     use_cuda: bool
 ) -> torch.nn.Module:
     # TODO: add support for loading a pretrained model
-
+    '''
     # Build the face modality components
     face_encoder: torch.nn.Module = nn_modules.ImageEncoder(
         hidden_dim=hidden_dim,
@@ -33,6 +33,18 @@ def build_model(
     )
     face_decoder: torch.nn.Module = nn_modules.ImageDecoder(
         hidden_dim=hidden_dim,
+        z_dim=latent_space_dim,
+        ch=num_channels
+    )
+    '''
+    
+    face_encoder: torch.nn.Module = nn_modules.Encoder(
+        
+        z_dim=latent_space_dim,
+        ch=num_channels
+    )
+    face_decoder: torch.nn.Module = nn_modules.Decoder(
+        
         z_dim=latent_space_dim,
         ch=num_channels
     )
