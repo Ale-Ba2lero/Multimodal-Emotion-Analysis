@@ -202,7 +202,7 @@ def test_batch(model, dataset_loader, img_size=64, use_cuda=True):
     print([Rd.emocat[emo.item()] for emo in torch.argmax(reconstructed_emotions, 1)[:4]])
     
 
-def emotion_accuracy(model, dataset_loader):
+def generate_and_classify_accuracy(model, dataset_loader, sample=False):
     
     match = 0
     total = 0
@@ -211,7 +211,36 @@ def emotion_accuracy(model, dataset_loader):
         labels = sample['cat'].cuda()
         image = sample['image'].cuda()
                             
-        _, reconstructed_emotions, _, _ = model(faces=image, emotions=None)  
+        emo_z_loc, emo_z_scale = model.emotion_to_latent(labels)
+        if sample is False: emo_z_scale=None
+        reconstructed_image = model.latent_to_face(emo_z_loc, emo_z_scale)
+        
+        face_z_loc, face_z_scale = model.face_to_latent(reconstructed_image)
+        if sample is False: face_z_scale=None
+        reconstructed_emotions = model.latent_to_emotion(face_z_loc, face_z_scale)        
+        
+        emotion_cat = torch.argmax(reconstructed_emotions, 1)  
+        
+        for idx in range(len(labels)):
+            total += 1
+            if labels[idx] == emotion_cat[idx]:
+                match += 1
+    
+    acc = match / total
+    return acc
+    
+def emotion_classification_accuracy(model, dataset_loader, sample=False):
+    
+    match = 0
+    total = 0
+    
+    for sample in tqdm.tqdm(iter(dataset_loader)):
+        labels = sample['cat'].cuda()
+        image = sample['image'].cuda()
+        
+        z_loc, z_scale = model.face_to_latent(image)
+        if sample is False: z_scale = None
+        reconstructed_emotions = model.latent_to_emotion(z_loc, z_scale) 
         emotion_cat = torch.argmax(reconstructed_emotions, 1)  
         
         for idx in range(len(labels)):

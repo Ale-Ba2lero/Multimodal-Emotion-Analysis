@@ -39,12 +39,10 @@ def build_model(
     '''
     
     face_encoder: torch.nn.Module = nn_modules.Encoder(
-        
         z_dim=latent_space_dim,
         ch=num_channels
     )
     face_decoder: torch.nn.Module = nn_modules.Decoder(
-        
         z_dim=latent_space_dim,
         ch=num_channels
     )
@@ -182,6 +180,7 @@ def train(
                 if emotions is not None:
                     emotions = emotions.cuda()
             
+            # multimodal loss
             m_losses: dict = eval_model_training(
                 model=mvae_model,
                 optimizer=optimizer,
@@ -195,7 +194,8 @@ def train(
             multimodal_loss.kld_loss.append(float(m_losses["kld_loss"].cpu().detach().numpy()))
             multimodal_loss.faces_reconstruction_loss.append(float(m_losses["faces_reconstruction_loss"].cpu().detach().numpy()))
             multimodal_loss.emotions_reconstruction_loss.append(float(m_losses["emotions_reconstruction_loss"].cpu().detach().numpy()))
-                        
+                      
+            # face only loss
             f_losses: dict = eval_model_training(
                 model=mvae_model,
                 optimizer=optimizer,
@@ -210,6 +210,8 @@ def train(
             face_loss.faces_reconstruction_loss.append(float(f_losses["faces_reconstruction_loss"].cpu().detach().numpy()))
             face_loss.emotions_reconstruction_loss.append(float(f_losses["emotions_reconstruction_loss"].cpu().detach().numpy()))
             
+            
+            # emotion only loss
             e_losses: dict = eval_model_training(
                 model=mvae_model,
                 optimizer=optimizer,
