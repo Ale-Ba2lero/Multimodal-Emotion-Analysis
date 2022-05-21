@@ -1,7 +1,7 @@
 class ConfigModelArgs:
     cat_dim= 8
     img_size= 64
-    z_dim=4096 # <-----
+    z_dim=8192 # <-----
     channel_dim=128
     hidden_dim= 512
     loss_weights = {'face': 5.0,'emotion': 0.5} # <-----

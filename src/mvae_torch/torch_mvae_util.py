@@ -5,8 +5,9 @@ Torch utilities
 import itertools
 import pickle
 from typing import Tuple, Generator, List, Any, Optional
+import matplotlib.pyplot as plt
+import util.RAVDESS_dataset_util as Rd
 
-#import librosa
 import numpy
 
 import numpy.random
@@ -17,6 +18,7 @@ import tqdm
 from torch.utils.data import Dataset
 
 from config_args import ConfigTrainArgs
+
 
 #from dataset.iemocap.iemocap_enrich import LoadUtils
 
@@ -156,44 +158,100 @@ class ProductOfExperts(Expert):
         return product_loc, product_scale
 
 
-def split_list_randomly(list_obj: List[Any], split_percentage: float) -> Tuple[List[Any], List[Any]]:
-    assert 0 <= split_percentage <= 1
-    assert len(list_obj) > 0
+def test_batch(model, dataset_loader, img_size=64, use_cuda=True):
+    model.train()
+    plt.figure(figsize = (40,10))
+    
+    sample = next(iter(dataset_loader))
+    images = sample['image']
+    labels = sample['cat']
+    
+    if use_cuda:
+        images = images.cuda()
+        labels = labels.cuda()
+        
+    batch_size = images.shape[0]
+        
+    input_array = numpy.zeros(shape=(img_size, 1, 3), dtype="uint8")
+    reconstructed_array = numpy.zeros(shape=(img_size, 1, 3), dtype="uint8")
+    reconstructed_emotions = []
+    
+    reconstructed_images, reconstructed_emotions, _, _ = model(faces=None, emotions=labels)
 
-    first_part_len: int = int(len(list_obj) * split_percentage)
-    first_part_random_elements: List[int] = numpy.random.choice(range(len(list_obj)), size=first_part_len)
-    second_part_random_elements: List[int] = [
-        idx for idx in range(len(list_obj))
-        if idx not in first_part_random_elements
-    ]
+    for idx in range(4):
+        input_image = images[idx]
+        
+        # storing the input image
+        input_image_display = numpy.array(input_image.cpu()*255., dtype='uint8').transpose((1, 2, 0))
+        input_array = numpy.concatenate((input_array, input_image_display), axis=1)
+        
+        # generating the reconstructed image and adding to array
+        input_image = input_image.view(1, 3, img_size, img_size)
+        
+        reconstructed_img = reconstructed_images[idx].cpu().view(3, img_size, img_size).detach().numpy()
+        reconstructed_img = numpy.array(reconstructed_img*255., dtype='uint8').transpose((1, 2, 0))
+        reconstructed_array = numpy.concatenate((reconstructed_array, reconstructed_img), axis=1)
+        
+        
+    input_array = input_array[:,1:,:]
+    reconstructed_array = reconstructed_array[:,1:,:]
+    display_array = numpy.concatenate((input_array, reconstructed_array), axis=0)
+    plt.imshow(display_array)
+    
+    print([Rd.emocat[label.item()] for label in labels[:4]])
+    print([Rd.emocat[emo.item()] for emo in torch.argmax(reconstructed_emotions, 1)[:4]])
+    
 
-    first_list: List[Any] = [
-        list_obj[idx] for idx in first_part_random_elements
-    ]
-    second_list: List[Any] = [
-        list_obj[idx] for idx in second_part_random_elements
-    ]
+def emotion_accuracy(model, dataset_loader):
+    
+    match = 0
+    total = 0
+    
+    for sample in tqdm.tqdm(iter(dataset_loader)):
+        labels = sample['cat'].cuda()
+        image = sample['image'].cuda()
+                            
+        _, reconstructed_emotions, _, _ = model(faces=image, emotions=None)  
+        emotion_cat = torch.argmax(reconstructed_emotions, 1)  
+        
+        for idx in range(len(labels)):
+            total += 1
+            if labels[idx] == emotion_cat[idx]:
+                match += 1
+    
+    acc = match / total
+    return acc
 
-    return first_list, second_list
 
+def print_losses(training_losses):
+    skip_epoch_plot=1
 
-def load_preprocessed_dataset(cfg: dict) -> Tuple[Dataset, Dataset]:
-    if cfg.model_type == "plain":
-        with open(cfg.paths.plain.training_data_path, "rb") as in_stream:
-            ravdess_exteroceptive_dataset_train: torch.utils.data.Dataset = pickle.load(in_stream)
-        with open(cfg.paths.plain.testing_data_path, "rb") as in_stream:
-            ravdess_exteroceptive_dataset_test: torch.utils.data.Dataset = pickle.load(in_stream)
-    elif cfg.model_type == "cnn":
-        with open(cfg.paths.cnn.training_data_path, "rb") as in_stream:
-            ravdess_exteroceptive_dataset_train: torch.utils.data.Dataset = pickle.load(in_stream)
-        with open(cfg.paths.cnn.testing_data_path, "rb") as in_stream:
-            ravdess_exteroceptive_dataset_test: torch.utils.data.Dataset = pickle.load(in_stream)
-    elif cfg.model_type == "vrnn":
-        with open(cfg.paths.vrnn.training_data_path, "rb") as in_stream:
-            ravdess_exteroceptive_dataset_train: torch.utils.data.Dataset = pickle.load(in_stream)
-        with open(cfg.paths.vrnn.testing_data_path, "rb") as in_stream:
-            ravdess_exteroceptive_dataset_test: torch.utils.data.Dataset = pickle.load(in_stream)
-    else:
-        raise ValueError(f"Unknown model type '{cfg.model_type}'")
+    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(14, 10))
 
-    return ravdess_exteroceptive_dataset_train, ravdess_exteroceptive_dataset_test
+    ax1.set_title('Reconstruction loss')
+    ax1.plot(training_losses['multimodal_loss'].total_loss[skip_epoch_plot:], color='red', label='multimodal')
+    ax1.plot(training_losses['emotion_loss'].total_loss[skip_epoch_plot:], color='green', label='emotion')
+    ax1.plot(training_losses['face_loss'].total_loss[skip_epoch_plot:], color='blue', label='face')
+    ax1.legend(loc="upper right")
+
+    ax2.set_title('KLD loss')
+    ax2.plot(training_losses['multimodal_loss'].kld_loss[skip_epoch_plot:], color='red', label='multimodal')
+    ax2.plot(training_losses['emotion_loss'].kld_loss[skip_epoch_plot:], color='green', label='emotion')
+    ax2.plot(training_losses['face_loss'].kld_loss[skip_epoch_plot:], color='blue', label='face')
+    ax2.legend(loc="upper right")
+
+    ax3.set_title('Face reconstruction loss')
+    ax3.plot(training_losses['multimodal_loss'].faces_reconstruction_loss[skip_epoch_plot:], color='red', label='multimodal')
+    #ax3.plot(training_losses['emotion_loss'].faces_reconstruction_loss[skip_epoch_plot:], color='green', label='emotion')
+    ax3.plot(training_losses['face_loss'].faces_reconstruction_loss[skip_epoch_plot:], color='blue', label='face')
+    ax3.legend(loc="upper right")
+
+    ax4.set_title('Emotion reconstruction loss')
+    ax4.plot(training_losses['multimodal_loss'].emotions_reconstruction_loss[skip_epoch_plot:], color='red', label='multimodal')
+    ax4.plot(training_losses['emotion_loss'].emotions_reconstruction_loss[skip_epoch_plot:], color='green', label='emotion')
+    #ax4.plot(training_losses['face_loss'].emotions_reconstruction_loss[skip_epoch_plot:], color='blue', label='face')
+    ax4.legend(loc="upper right")
+
+    # Hide x labels and tick labels for top plots and y ticks for right plots.
+    for ax in fig.get_axes():
+        ax.label_outer()

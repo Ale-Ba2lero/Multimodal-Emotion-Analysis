@@ -142,7 +142,8 @@ def train(
         save_model: bool,
         seed: int,
         use_cuda: bool,
-        cfg: ConfigTrainArgs
+        cfg: ConfigTrainArgs,
+        print_loss: bool = False
 ) -> None:
     checkpoint_every=None
     save_model=False
@@ -242,57 +243,32 @@ def train(
         training_losses['emotion_loss'].faces_reconstruction_loss.append(numpy.nanmean(emotion_loss.faces_reconstruction_loss))
         training_losses['emotion_loss'].emotions_reconstruction_loss.append(numpy.nanmean(emotion_loss.emotions_reconstruction_loss))
         
-        '''
-        print(
-            f"Mean total loss: {training_losses['total_loss'][-1]:.5};\n"
-            f"Mean all modalities loss: {training_losses['multimodal_loss'][-1]:.5};\n"
-            f"Mean faces loss: {training_losses['faces_loss'][-1]:.5};\n"
-            f"Mean emotions loss: {training_losses['emotions_loss'][-1]:.5};\n"
-        )
-        ''' 
-        
-        print(
-            "Multimodal losses:\n"
-            f"Mean total loss: {training_losses['multimodal_loss'].total_loss[-1]:.5};\n"
-            f"Mean reconstruction loss: {training_losses['multimodal_loss'].reconstruction_loss[-1]:.5};\n"
-            f"Mean kld_loss loss: {training_losses['multimodal_loss'].kld_loss[-1]:.5};\n"
-            f"Mean faces_reconstruction loss: {training_losses['multimodal_loss'].faces_reconstruction_loss[-1]:.5};\n"
-            f"Mean emotions_reconstruction loss: {training_losses['multimodal_loss'].emotions_reconstruction_loss[-1]:.5};\n"
-        )
-        
-        print(
-            "Face losses:\n"
-            f"Mean total loss: {training_losses['face_loss'].total_loss[-1]:.5};\n"
-            f"Mean reconstruction loss: {training_losses['face_loss'].reconstruction_loss[-1]:.5};\n"
-            f"Mean kld_loss loss: {training_losses['face_loss'].kld_loss[-1]:.5};\n"
-            f"Mean faces_reconstruction loss: {training_losses['face_loss'].faces_reconstruction_loss[-1]:.5};\n"
-            f"Mean emotions_reconstruction loss: {training_losses['face_loss'].emotions_reconstruction_loss[-1]:.5};\n"
-        )
-        
-        print(
-            "Emotion losses:\n"
-            f"Mean total loss: {training_losses['emotion_loss'].total_loss[-1]:.5};\n"
-            f"Mean reconstruction loss: {training_losses['emotion_loss'].reconstruction_loss[-1]:.5};\n"
-            f"Mean kld_loss loss: {training_losses['emotion_loss'].kld_loss[-1]:.5};\n"
-            f"Mean faces_reconstruction loss: {training_losses['emotion_loss'].faces_reconstruction_loss[-1]:.5};\n"
-            f"Mean emotions_reconstruction loss: {training_losses['emotion_loss'].emotions_reconstruction_loss[-1]:.5};\n"
-        )
+        if print_loss:
+            print(
+                "Multimodal losses:\n"
+                f"Mean total loss: {training_losses['multimodal_loss'].total_loss[-1]:.5};\n"
+                f"Mean reconstruction loss: {training_losses['multimodal_loss'].reconstruction_loss[-1]:.5};\n"
+                f"Mean kld_loss loss: {training_losses['multimodal_loss'].kld_loss[-1]:.5};\n"
+                f"Mean faces_reconstruction loss: {training_losses['multimodal_loss'].faces_reconstruction_loss[-1]:.5};\n"
+                f"Mean emotions_reconstruction loss: {training_losses['multimodal_loss'].emotions_reconstruction_loss[-1]:.5};\n"
+            )
 
-        if checkpoint_every is not None:
-            if (epoch_num + 1) % checkpoint_every == 0:
-                checkpoint_save_path: str = os.path.join(checkpoint_path, f"ext_mmvae_epoch_{epoch_num + 1:03}.pt")
-                torch.save(mvae_model.state_dict(), checkpoint_save_path)
-                logger.info(f"Saved checkpoint to {checkpoint_save_path}")
+            print(
+                "Face losses:\n"
+                f"Mean total loss: {training_losses['face_loss'].total_loss[-1]:.5};\n"
+                f"Mean reconstruction loss: {training_losses['face_loss'].reconstruction_loss[-1]:.5};\n"
+                f"Mean kld_loss loss: {training_losses['face_loss'].kld_loss[-1]:.5};\n"
+                f"Mean faces_reconstruction loss: {training_losses['face_loss'].faces_reconstruction_loss[-1]:.5};\n"
+                f"Mean emotions_reconstruction loss: {training_losses['face_loss'].emotions_reconstruction_loss[-1]:.5};\n"
+            )
 
-    if save_model:
-        # Do a global and a local save of the model (local to Hydra outputs)
-        torch.save(mvae_model.state_dict(), cfg.train.plain.model_save_path)
-        torch.save(mvae_model.state_dict(), "ravdess_mmvae_pretrained.pt")
-        logger.info(f"Saved model to '{cfg.train.plain.model_save_path}', and also locally.")
-
-        # Do a global and local save of the training stats (local to Hydra outputs)
-        torch.save(training_losses, cfg.train.plain.stats_save_path)
-        torch.save(training_losses, "ravdess_mmvae_pretrained_stats.pt")
-        logger.info(f"Saved model to '{cfg.train.plain.stats_save_path}', and also locally.")
+            print(
+                "Emotion losses:\n"
+                f"Mean total loss: {training_losses['emotion_loss'].total_loss[-1]:.5};\n"
+                f"Mean reconstruction loss: {training_losses['emotion_loss'].reconstruction_loss[-1]:.5};\n"
+                f"Mean kld_loss loss: {training_losses['emotion_loss'].kld_loss[-1]:.5};\n"
+                f"Mean faces_reconstruction loss: {training_losses['emotion_loss'].faces_reconstruction_loss[-1]:.5};\n"
+                f"Mean emotions_reconstruction loss: {training_losses['emotion_loss'].emotions_reconstruction_loss[-1]:.5};\n"
+            )
         
     return training_losses
