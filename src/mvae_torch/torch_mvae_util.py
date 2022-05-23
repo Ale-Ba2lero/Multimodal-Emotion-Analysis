@@ -176,7 +176,9 @@ def test_batch(model, dataset_loader, img_size=64, use_cuda=True):
     reconstructed_array = numpy.zeros(shape=(img_size, 1, 3), dtype="uint8")
     reconstructed_emotions = []
     
-    reconstructed_images, reconstructed_emotions, _, _ = model(faces=None, emotions=labels)
+    reconstructed_images, _, _, _ = model(faces=None, emotions=labels)
+    _, reconstructed_emotions, _, _ = model(faces=reconstructed_images, emotions=None)
+    
 
     for idx in range(4):
         input_image = images[idx]
@@ -202,8 +204,7 @@ def test_batch(model, dataset_loader, img_size=64, use_cuda=True):
     print([Rd.emocat[emo.item()] for emo in torch.argmax(reconstructed_emotions, 1)[:4]])
     
 
-def generate_and_classify_accuracy(model, dataset_loader, sample=False):
-    
+def recon_and_classiffication_accuracy(model, dataset_loader):
     match = 0
     total = 0
     
@@ -211,76 +212,67 @@ def generate_and_classify_accuracy(model, dataset_loader, sample=False):
         labels = sample['cat'].cuda()
         image = sample['image'].cuda()
                             
-        emo_z_loc, emo_z_scale = model.emotion_to_latent(labels)
-        if sample is False: emo_z_scale=None
-        reconstructed_image = model.latent_to_face(emo_z_loc, emo_z_scale)
-        
-        face_z_loc, face_z_scale = model.face_to_latent(reconstructed_image)
-        if sample is False: face_z_scale=None
-        reconstructed_emotions = model.latent_to_emotion(face_z_loc, face_z_scale)        
-        
-        emotion_cat = torch.argmax(reconstructed_emotions, 1)  
+        reconstructed_image, _, _, _ = model(faces=None, emotions=labels)
+        _, reconstructed_emotions, _, _ = model(faces=reconstructed_image, emotions=None)
+        reconstructed_emotions = torch.argmax(reconstructed_emotions, 1)
         
         for idx in range(len(labels)):
             total += 1
-            if labels[idx] == emotion_cat[idx]:
+            if labels[idx] == reconstructed_emotions[idx]:
                 match += 1
     
     acc = match / total
     return acc
-    
-def emotion_classification_accuracy(model, dataset_loader, sample=False):
-    
+
+
+def classiffication_accuracy(model, dataset_loader):
     match = 0
     total = 0
     
     for sample in tqdm.tqdm(iter(dataset_loader)):
         labels = sample['cat'].cuda()
         image = sample['image'].cuda()
-        
-        z_loc, z_scale = model.face_to_latent(image)
-        if sample is False: z_scale = None
-        reconstructed_emotions = model.latent_to_emotion(z_loc, z_scale) 
-        emotion_cat = torch.argmax(reconstructed_emotions, 1)  
+                            
+        _, reconstructed_emotions, _, _ = model(faces=image, emotions=None)
+        reconstructed_emotions = torch.argmax(reconstructed_emotions, 1)
         
         for idx in range(len(labels)):
             total += 1
-            if labels[idx] == emotion_cat[idx]:
+            if labels[idx] == reconstructed_emotions[idx]:
                 match += 1
     
     acc = match / total
     return acc
+    
 
-
-def print_losses(training_losses):
-    skip_epoch_plot=1
+def print_losses(training_losses, skipframe=0):
 
     fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(14, 10))
 
     ax1.set_title('Reconstruction loss')
-    ax1.plot(training_losses['multimodal_loss'].total_loss[skip_epoch_plot:], color='red', label='multimodal')
-    ax1.plot(training_losses['emotion_loss'].total_loss[skip_epoch_plot:], color='green', label='emotion')
-    ax1.plot(training_losses['face_loss'].total_loss[skip_epoch_plot:], color='blue', label='face')
+    ax1.plot(training_losses['multimodal_loss'].total_loss[skipframe:], color='red', label='multimodal')
+    ax1.plot(training_losses['emotion_loss'].total_loss[skipframe:], color='green', label='emotion')
+    ax1.plot(training_losses['face_loss'].total_loss[skipframe:], color='blue', label='face')
     ax1.legend(loc="upper right")
 
     ax2.set_title('KLD loss')
-    ax2.plot(training_losses['multimodal_loss'].kld_loss[skip_epoch_plot:], color='red', label='multimodal')
-    ax2.plot(training_losses['emotion_loss'].kld_loss[skip_epoch_plot:], color='green', label='emotion')
-    ax2.plot(training_losses['face_loss'].kld_loss[skip_epoch_plot:], color='blue', label='face')
+    ax2.plot(training_losses['multimodal_loss'].kld_loss[skipframe:], color='red', label='multimodal')
+    ax2.plot(training_losses['emotion_loss'].kld_loss[skipframe:], color='green', label='emotion')
+    ax2.plot(training_losses['face_loss'].kld_loss[skipframe:], color='blue', label='face')
     ax2.legend(loc="upper right")
 
     ax3.set_title('Face reconstruction loss')
-    ax3.plot(training_losses['multimodal_loss'].faces_reconstruction_loss[skip_epoch_plot:], color='red', label='multimodal')
-    #ax3.plot(training_losses['emotion_loss'].faces_reconstruction_loss[skip_epoch_plot:], color='green', label='emotion')
-    ax3.plot(training_losses['face_loss'].faces_reconstruction_loss[skip_epoch_plot:], color='blue', label='face')
+    ax3.plot(training_losses['multimodal_loss'].faces_reconstruction_loss[skipframe:], color='red', label='multimodal')
+    #ax3.plot(training_losses['emotion_loss'].faces_reconstruction_loss[skipframe:], color='green', label='emotion')
+    ax3.plot(training_losses['face_loss'].faces_reconstruction_loss[skipframe:], color='blue', label='face')
     ax3.legend(loc="upper right")
 
     ax4.set_title('Emotion reconstruction loss')
-    ax4.plot(training_losses['multimodal_loss'].emotions_reconstruction_loss[skip_epoch_plot:], color='red', label='multimodal')
-    ax4.plot(training_losses['emotion_loss'].emotions_reconstruction_loss[skip_epoch_plot:], color='green', label='emotion')
-    #ax4.plot(training_losses['face_loss'].emotions_reconstruction_loss[skip_epoch_plot:], color='blue', label='face')
+    ax4.plot(training_losses['multimodal_loss'].emotions_reconstruction_loss[skipframe:], color='red', label='multimodal')
+    ax4.plot(training_losses['emotion_loss'].emotions_reconstruction_loss[skipframe:], color='green', label='emotion')
+    #ax4.plot(training_losses['face_loss'].emotions_reconstruction_loss[skipframe:], color='blue', label='face')
     ax4.legend(loc="upper right")
 
     # Hide x labels and tick labels for top plots and y ticks for right plots.
-    for ax in fig.get_axes():
-        ax.label_outer()
+    #for ax in fig.get_axes():
+    #    ax.label_outer()

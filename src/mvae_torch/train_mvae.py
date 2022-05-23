@@ -90,10 +90,21 @@ def eval_model_training(
         optimizer,
         beta,
         faces,
-        emotions
+        emotions,
+        ignore_faces=False,
+        ignore_emotions=False
 ) -> dict:
     # Zero the parameter gradients
     optimizer.zero_grad()
+    
+    if ignore_faces:
+        input_faces = None
+    else:
+        input_faces = faces
+    if ignore_emotions:
+        input_emotions = None
+    else:
+        input_emotions = emotions
 
     (
         face_reconstruction,
@@ -101,7 +112,7 @@ def eval_model_training(
         z_loc_expert,
         z_scale_expert
     ) = model(
-        faces=faces, emotions=emotions
+        faces=input_faces, emotions=input_emotions
     )
 
     loss = model.loss_function(
@@ -201,7 +212,8 @@ def train(
                 optimizer=optimizer,
                 beta=annealing_beta,
                 faces=faces,
-                emotions=None
+                emotions=emotions,
+                ignore_emotions=True
             )
                 
             face_loss.total_loss.append(float(f_losses["total_loss"].cpu().detach().numpy()))
@@ -216,8 +228,9 @@ def train(
                 model=mvae_model,
                 optimizer=optimizer,
                 beta=annealing_beta,
-                faces=None,
-                emotions=emotions
+                faces=faces,
+                emotions=emotions,
+                ignore_faces=True
             )
                 
             emotion_loss.total_loss.append(float(e_losses["total_loss"].cpu().detach().numpy()))
@@ -225,7 +238,22 @@ def train(
             emotion_loss.kld_loss.append(float(e_losses["kld_loss"].cpu().detach().numpy()))
             emotion_loss.faces_reconstruction_loss.append(float(e_losses["faces_reconstruction_loss"].cpu().detach().numpy()))
             emotion_loss.emotions_reconstruction_loss.append(float(e_losses["emotions_reconstruction_loss"].cpu().detach().numpy()))
-        
+            
+            f_losses: dict = eval_model_training(
+                model=mvae_model,
+                optimizer=optimizer,
+                beta=annealing_beta,
+                faces=faces,
+                emotions=None
+            )
+            
+            e_losses: dict = eval_model_training(
+                model=mvae_model,
+                optimizer=optimizer,
+                beta=annealing_beta,
+                faces=faces,
+                emotions=None
+            )
         
         training_losses['multimodal_loss'].total_loss.append(numpy.nanmean(multimodal_loss.total_loss))
         training_losses['multimodal_loss'].reconstruction_loss.append(numpy.nanmean(multimodal_loss.reconstruction_loss))

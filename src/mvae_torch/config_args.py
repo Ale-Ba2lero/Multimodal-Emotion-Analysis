@@ -1,24 +1,24 @@
 class ConfigModelArgs:
     cat_dim= 8
     img_size= 64
-    z_dim=10000 # <-----
-    channel_dim=128
+    z_dim=8192 # <----- 8192, 10000
+    channel_dim= 128
     hidden_dim= 512
-    loss_weights = {'face': 10.0,'emotion': 1.0} # <-----
+    loss_weights = {'face': 5.0,'emotion': 1.0} # <----- *
     expert_type= "moe"
-    dataset_path= '/home/studenti/ballerini/datasets/RAVDESS_frames'
+    dataset_path= '/home/studenti/ballerini/datasets/RAVDESS_frames_ds'
 
 
 class ConfigTrainArgs:
     learning_rate= 1e-5
     optim_betas= [ 0.95, 0.98 ]
-    num_epochs= 10
+    num_epochs= 25
     batch_size= 32
-    num_workers= 40
+    num_workers= 25
     checkpoint_every= 20
     checkpoint_path= "./"
     save_model= True
-    model_save_path= "../trained_models/ravdess_mvae_data_10k.save"
+    model_save_path= "../trained_models/ravdess_mvae_data_8k_altloss.save"
     seed= 100
     use_cuda= True
     annealing_type= "static" #static, linear, cyclical

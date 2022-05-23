@@ -44,7 +44,7 @@ class MultimodalVariationalAutoencoder(torch.nn.Module):
             emotions_reconstruction: torch.Tensor,
             z_loc: torch.Tensor,
             z_scale: torch.Tensor,
-            beta: float
+            beta: float,
             ) -> dict:
         """
         Computes the VAE loss function:
@@ -153,14 +153,11 @@ class MultimodalVariationalAutoencoder(torch.nn.Module):
             emotions=emotions
         )
         
-        # Sample from the latent space        
-        if self.training:
-            latent_sample: torch.Tensor = self.sample_latent(
+        # Sample from the latent space 
+        latent_sample: torch.Tensor = self.sample_latent(
             z_loc=z_loc_expert,
             z_scale=z_scale_expert
-        )
-        else:
-            z_loc=z_loc_expert            
+        )   
 
         # Reconstruct inputs based on that Gaussian sample
         face_reconstruction, emotions_reconstruction = self.generate(
@@ -168,27 +165,3 @@ class MultimodalVariationalAutoencoder(torch.nn.Module):
         )
 
         return face_reconstruction, emotions_reconstruction, z_loc_expert, z_scale_expert
-    
-    def face_to_latent(self, face):
-        z_loc, z_scale = self._face_encoder.forward(face)
-        return z_loc, z_scale
-        
-    def latent_to_face(self, z_loc, z_scale=None):
-        if z_scale is not None:
-            sample = self.sample_latent(z_loc, z_scale)
-            face, _ = self.generate(sample)
-            return face
-        else:
-            return self._face_decoder.forward(z_loc)
-        
-    def emotion_to_latent(self, emotion):
-        z_loc, z_scale = self._emotion_encoder.forward(emotion)
-        return z_loc, z_scale
-    
-    def latent_to_emotion(self, z_loc, z_scale=None):
-        if z_scale is not None:
-            sample = self.sample_latent(z_loc, z_scale)
-            _, emotion = self.generate(sample)
-            return emotion
-        else:
-            return self._emotion_decoder.forward(z_loc)

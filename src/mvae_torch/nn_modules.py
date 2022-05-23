@@ -252,3 +252,45 @@ class EmotionDecoder(nn.Module):
         
     def forward(self, z):
         return self.net(z)
+    
+'''
+class EmotionEncoder(nn.Module):
+    def __init__(self, input_dim, z_dim=64, hidden_dim=512, use_cuda=True):
+        super(EmotionEncoder, self).__init__()
+        self.input_dim = input_dim
+        self.net = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim//4),nn.ReLU(),
+            nn.Linear(hidden_dim//4, hidden_dim//2), nn.ReLU(),
+            nn.Linear(hidden_dim//2, hidden_dim), nn.ReLU()
+        )
+        
+        self.z_loc_layer = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim), nn.ReLU(),
+            nn.Linear(hidden_dim, z_dim))
+        
+        self.z_scale_layer = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim), nn.ReLU(),
+            nn.Linear(hidden_dim, z_dim))
+        self.z_dim = z_dim
+
+    def forward(self, emotion):
+        emotion = torch.nn.functional.one_hot(emotion, num_classes=self.input_dim)
+        hidden = self.net(emotion.to(torch.float64))
+        z_loc = self.z_loc_layer(hidden)
+        z_scale = torch.exp(self.z_scale_layer(hidden))
+        return z_loc, z_scale
+
+
+class EmotionDecoder(nn.Module):
+    def __init__(self, output_dim, z_dim=64, hidden_dim=512, use_cuda=True):
+        super(EmotionDecoder, self).__init__()
+        self.net = nn.Sequential(
+            nn.Linear(z_dim, hidden_dim), nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim//2), nn.ReLU(),
+            nn.Linear(hidden_dim//2, hidden_dim//4), nn.ReLU(),
+            nn.Linear(hidden_dim//4, output_dim)
+        )
+        
+    def forward(self, z):
+        return self.net(z)
+'''
