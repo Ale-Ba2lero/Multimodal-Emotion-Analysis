@@ -1,7 +1,7 @@
 class ConfigModelArgs:
     cat_dim= 8
     img_size= 64
-    z_dim=8192 # <----- 8192, 10000
+    z_dim=12000 # <----- 8192, 10000
     channel_dim= 128
     hidden_dim= 512
     loss_weights = {'face': 5.0,'emotion': 1.0} # <----- *
@@ -12,13 +12,13 @@ class ConfigModelArgs:
 class ConfigTrainArgs:
     learning_rate= 1e-5
     optim_betas= [ 0.95, 0.98 ]
-    num_epochs= 25
+    num_epochs= 100
     batch_size= 32
-    num_workers= 25
+    num_workers= 20
     checkpoint_every= 20
     checkpoint_path= "./"
     save_model= True
-    model_save_path= "../trained_models/ravdess_mvae_data_8k_altloss.save"
+    model_save_path= "../trained_models/ravdess_mvae_data_12k_altloss.save"
     seed= 100
     use_cuda= True
     annealing_type= "static" #static, linear, cyclical

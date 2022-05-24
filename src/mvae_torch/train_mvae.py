@@ -251,8 +251,8 @@ def train(
                 model=mvae_model,
                 optimizer=optimizer,
                 beta=annealing_beta,
-                faces=faces,
-                emotions=None
+                faces=None,
+                emotions=emotions
             )
         
         training_losses['multimodal_loss'].total_loss.append(numpy.nanmean(multimodal_loss.total_loss))
