@@ -16,7 +16,7 @@ class ResDown(nn.Module):
         
         self.conv3 = nn.Conv2d(channel_in, channel_out, 3, 1, 1)
 
-        self.AvePool = nn.AvgPool2d(scale, scale)
+        self.AvePool = nn.AvgPool2d(scale, scale) # nn.MaxPool2d(scale, scale)
         
     def forward(self, x):
         skip = self.conv3(self.AvePool(x))

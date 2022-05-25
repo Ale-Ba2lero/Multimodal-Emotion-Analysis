@@ -73,7 +73,7 @@ class MultimodalVariationalAutoencoder(torch.nn.Module):
         # Calculate the KLD loss
         log_var = torch.log(torch.square(z_scale))
         kld_loss = torch.mean(-0.5 * torch.sum(1 + log_var - z_loc ** 2 - log_var.exp(), dim=1), dim=0)
-
+        
         total_loss = reconstruction_loss + beta * kld_loss
 
         return {

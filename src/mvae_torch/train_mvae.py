@@ -207,13 +207,13 @@ def train(
             multimodal_loss.emotions_reconstruction_loss.append(float(m_losses["emotions_reconstruction_loss"].cpu().detach().numpy()))
                       
             # face only loss
-            f_losses: dict = eval_model_training(
+            '''f_losses: dict = eval_model_training(
                 model=mvae_model,
                 optimizer=optimizer,
                 beta=annealing_beta,
                 faces=faces,
                 emotions=None
-            )
+            )'''
                 
             f_losses: dict = eval_model_training(
                 model=mvae_model,
@@ -232,13 +232,13 @@ def train(
             
             
             # emotion only loss
-            e_losses: dict = eval_model_training(
+            '''e_losses: dict = eval_model_training(
                 model=mvae_model,
                 optimizer=optimizer,
                 beta=annealing_beta,
                 faces=None,
                 emotions=emotions
-            )
+            )'''
                 
             e_losses: dict = eval_model_training(
                 model=mvae_model,

@@ -245,9 +245,13 @@ def classiffication_accuracy(model, dataset_loader):
     return acc
     
 
-def print_losses(training_losses, skipframe=0):
-
+def print_losses(training_losses, title=None, skipframe=0):
+    
     fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(14, 10))
+    if title is not None:
+        fig.suptitle(title,
+          fontsize=20,
+          color="green")
 
     ax1.set_title('Reconstruction loss')
     ax1.plot(training_losses['multimodal_loss'].total_loss[skipframe:], color='red', label='multimodal')
