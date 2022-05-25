@@ -212,6 +212,14 @@ def train(
                 optimizer=optimizer,
                 beta=annealing_beta,
                 faces=faces,
+                emotions=None
+            )
+                
+            f_losses: dict = eval_model_training(
+                model=mvae_model,
+                optimizer=optimizer,
+                beta=annealing_beta,
+                faces=faces,
                 emotions=emotions,
                 ignore_emotions=True
             )
@@ -228,6 +236,14 @@ def train(
                 model=mvae_model,
                 optimizer=optimizer,
                 beta=annealing_beta,
+                faces=None,
+                emotions=emotions
+            )
+                
+            e_losses: dict = eval_model_training(
+                model=mvae_model,
+                optimizer=optimizer,
+                beta=annealing_beta,
                 faces=faces,
                 emotions=emotions,
                 ignore_faces=True
@@ -239,21 +255,6 @@ def train(
             emotion_loss.faces_reconstruction_loss.append(float(e_losses["faces_reconstruction_loss"].cpu().detach().numpy()))
             emotion_loss.emotions_reconstruction_loss.append(float(e_losses["emotions_reconstruction_loss"].cpu().detach().numpy()))
             
-            f_losses: dict = eval_model_training(
-                model=mvae_model,
-                optimizer=optimizer,
-                beta=annealing_beta,
-                faces=faces,
-                emotions=None
-            )
-            
-            e_losses: dict = eval_model_training(
-                model=mvae_model,
-                optimizer=optimizer,
-                beta=annealing_beta,
-                faces=None,
-                emotions=emotions
-            )
         
         training_losses['multimodal_loss'].total_loss.append(numpy.nanmean(multimodal_loss.total_loss))
         training_losses['multimodal_loss'].reconstruction_loss.append(numpy.nanmean(multimodal_loss.reconstruction_loss))
