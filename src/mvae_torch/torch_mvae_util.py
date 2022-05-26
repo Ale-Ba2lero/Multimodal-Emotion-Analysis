@@ -11,12 +11,10 @@ import util.RAVDESS_dataset_util as Rd
 import numpy
 
 import numpy.random
-import omegaconf
 import torch
 import tqdm
 
 from torch.utils.data import Dataset
-
 from config_args import ConfigTrainArgs
 
 
@@ -92,10 +90,6 @@ class AnnealingBetaGeneratorFactory(object):
     @property
     def annealing_type(self) -> str:
         return self._annealing_type
-
-    @property
-    def training_config(self) -> omegaconf.DictConfig:
-        return self._training_config
 
 
 def all_subsets(elements: List[Any]):

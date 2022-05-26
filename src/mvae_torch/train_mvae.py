@@ -8,17 +8,18 @@ import torch
 from tqdm import tqdm
 from torch.utils.data import Dataset, DataLoader
 
-import torch_mvae_util
-import multimodal_vae  
-import nn_modules
-from config_args import ConfigModelArgs, ConfigTrainArgs
+from multimodal_vae import MultimodalVariationalAutoencoder
+from nn_modules import Encoder, Decoder, EmotionEncoder, EmotionDecoder, SmallImgEncoder, SmallImgDecoder
+
+from torch_mvae_util import Expert, ProductOfExperts, MixtureOfExpertsComparableComplexity, AnnealingBetaGeneratorFactory
+from config_args import ConfigTrainArgs
 
 
 def build_model(
     cat_dim: int,
     latent_space_dim: int,
     hidden_dim: int,
-    num_channels: int,
+    num_filters: int,
     loss_weights: dict,
     expert_type: str,
     use_cuda: bool
@@ -29,32 +30,42 @@ def build_model(
     face_encoder: torch.nn.Module = nn_modules.ImageEncoder(
         hidden_dim=hidden_dim,
         z_dim=latent_space_dim,
-        ch=num_channels
+        num_filters=num_filters
     )
     face_decoder: torch.nn.Module = nn_modules.ImageDecoder(
         hidden_dim=hidden_dim,
         z_dim=latent_space_dim,
-        ch=num_channels
+        num_filters=num_filters
     )
-    '''
     
-    face_encoder: torch.nn.Module = nn_modules.Encoder(
+    face_encoder: torch.nn.Module = Encoder(
         z_dim=latent_space_dim,
-        ch=num_channels
+        num_filters=num_filters
     )
-    face_decoder: torch.nn.Module = nn_modules.Decoder(
+    face_decoder: torch.nn.Module = Decoder(
         z_dim=latent_space_dim,
-        ch=num_channels
+        num_filters=num_filters
+    )'''
+    
+    face_encoder: torch.nn.Module = SmallImgEncoder(
+        hidden_dim=hidden_dim,
+        z_dim=latent_space_dim,
+        num_filters=num_filters
+    )
+    face_decoder: torch.nn.Module = SmallImgDecoder(
+        hidden_dim=hidden_dim,
+        z_dim=latent_space_dim,
+        num_filters=num_filters
     )
 
     # Build the discrete emotion category modality components
-    emocat_encoder: torch.nn.Module = nn_modules.EmotionEncoder(
+    emocat_encoder: torch.nn.Module = EmotionEncoder(
         input_dim=cat_dim,
         hidden_dim=hidden_dim,
         z_dim=latent_space_dim,
         use_cuda=use_cuda
     )
-    emocat_decoder: torch.nn.Module = nn_modules.EmotionDecoder(
+    emocat_decoder: torch.nn.Module = EmotionDecoder(
         output_dim=cat_dim,
         hidden_dim=hidden_dim,
         z_dim=latent_space_dim,
@@ -64,14 +75,14 @@ def build_model(
     # Create the expert
     if expert_type == "poe":
         # Should the epsilon be parameterized?
-        expert: torch_mvae_util.Expert = torch_mvae_util.ProductOfExperts()
+        expert: Expert = ProductOfExperts()
     elif expert_type == "moe":
-        expert: torch_mvae_util.Expert = torch_mvae_util.MixtureOfExpertsComparableComplexity()
+        expert: Expert = MixtureOfExpertsComparableComplexity()
     else:
         raise ValueError(f"Unknown expert type '{expert_type}'")
 
     # Build the model
-    mvae: torch.nn.Module = multimodal_vae.MultimodalVariationalAutoencoder(
+    mvae: torch.nn.Module = MultimodalVariationalAutoencoder(
         face_encoder=face_encoder,
         face_decoder=face_decoder,
         emotion_encoder=emocat_encoder,
@@ -163,7 +174,7 @@ def train(
     adam_args = {"lr": learning_rate, "betas": optim_betas}
     optimizer = torch.optim.Adam(params=mvae_model.parameters(), **adam_args)
 
-    annealing_beta_gen_factory = torch_mvae_util.AnnealingBetaGeneratorFactory(
+    annealing_beta_gen_factory = AnnealingBetaGeneratorFactory(
         annealing_type=cfg.annealing_type,
         training_config=cfg
     )
@@ -207,14 +218,15 @@ def train(
             multimodal_loss.emotions_reconstruction_loss.append(float(m_losses["emotions_reconstruction_loss"].cpu().detach().numpy()))
                       
             # face only loss
-            '''f_losses: dict = eval_model_training(
+            f_losses: dict = eval_model_training(
                 model=mvae_model,
                 optimizer=optimizer,
                 beta=annealing_beta,
                 faces=faces,
                 emotions=None
-            )'''
+            )
                 
+            '''    
             f_losses: dict = eval_model_training(
                 model=mvae_model,
                 optimizer=optimizer,
@@ -222,7 +234,7 @@ def train(
                 faces=faces,
                 emotions=emotions,
                 ignore_emotions=True
-            )
+            )'''
                 
             face_loss.total_loss.append(float(f_losses["total_loss"].cpu().detach().numpy()))
             face_loss.reconstruction_loss.append(float(f_losses["reconstruction_loss"].cpu().detach().numpy()))
@@ -232,14 +244,15 @@ def train(
             
             
             # emotion only loss
-            '''e_losses: dict = eval_model_training(
+            e_losses: dict = eval_model_training(
                 model=mvae_model,
                 optimizer=optimizer,
                 beta=annealing_beta,
                 faces=None,
                 emotions=emotions
-            )'''
+            )
                 
+            '''   
             e_losses: dict = eval_model_training(
                 model=mvae_model,
                 optimizer=optimizer,
@@ -247,7 +260,7 @@ def train(
                 faces=faces,
                 emotions=emotions,
                 ignore_faces=True
-            )
+            )'''
                 
             emotion_loss.total_loss.append(float(e_losses["total_loss"].cpu().detach().numpy()))
             emotion_loss.reconstruction_loss.append(float(e_losses["reconstruction_loss"].cpu().detach().numpy()))
