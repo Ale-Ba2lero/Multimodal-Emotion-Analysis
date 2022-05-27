@@ -9,7 +9,7 @@ from tqdm import tqdm
 from torch.utils.data import Dataset, DataLoader
 
 from multimodal_vae import MultimodalVariationalAutoencoder
-from nn_modules import Encoder, Decoder, EmotionEncoder, EmotionDecoder, SmallImgEncoder, SmallImgDecoder
+from nn_modules import FaceEncoder, FaceDecoder, EmotionEncoder, EmotionDecoder #, SmallImgEncoder, SmallImgDecoder
 
 from torch_mvae_util import Expert, ProductOfExperts, MixtureOfExpertsComparableComplexity, AnnealingBetaGeneratorFactory
 from config_args import ConfigTrainArgs
@@ -47,12 +47,12 @@ def build_model(
         num_filters=num_filters
     )'''
     
-    face_encoder: torch.nn.Module = SmallImgEncoder(
+    face_encoder: torch.nn.Module = FaceEncoder(
         hidden_dim=hidden_dim,
         z_dim=latent_space_dim,
         num_filters=num_filters
     )
-    face_decoder: torch.nn.Module = SmallImgDecoder(
+    face_decoder: torch.nn.Module = FaceDecoder(
         hidden_dim=hidden_dim,
         z_dim=latent_space_dim,
         num_filters=num_filters

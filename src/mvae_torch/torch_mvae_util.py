@@ -152,7 +152,7 @@ class ProductOfExperts(Expert):
         return product_loc, product_scale
 
 
-def test_batch(model, dataset_loader, img_size=64, use_cuda=True):
+def test_batch(model, dataset_loader, img_size=64,sample=True, use_cuda=True):
     model.train()
     plt.figure(figsize = (40,10))
     
@@ -170,8 +170,8 @@ def test_batch(model, dataset_loader, img_size=64, use_cuda=True):
     reconstructed_array = numpy.zeros(shape=(img_size, 1, 3), dtype="uint8")
     reconstructed_emotions = []
     
-    reconstructed_images, _, _, _ = model(faces=None, emotions=labels)
-    _, reconstructed_emotions, _, _ = model(faces=reconstructed_images, emotions=None)
+    reconstructed_images, _, _, _ = model(faces=None, emotions=labels, sample=sample)
+    _, reconstructed_emotions, _, _ = model(faces=reconstructed_images, emotions=None, sample=sample)
     
 
     for idx in range(4):
@@ -197,8 +197,10 @@ def test_batch(model, dataset_loader, img_size=64, use_cuda=True):
     print([Rd.emocat[label.item()] for label in labels[:4]])
     print([Rd.emocat[emo.item()] for emo in torch.argmax(reconstructed_emotions, 1)[:4]])
     
+    return display_array
+    
 
-def recon_and_classiffication_accuracy(model, dataset_loader):
+def recon_and_classiffication_accuracy(model, dataset_loader, sample = True):
     match = 0
     total = 0
     
@@ -207,7 +209,7 @@ def recon_and_classiffication_accuracy(model, dataset_loader):
         image = sample['image'].cuda()
                             
         reconstructed_image, _, _, _ = model(faces=None, emotions=labels)
-        _, reconstructed_emotions, _, _ = model(faces=reconstructed_image, emotions=None)
+        _, reconstructed_emotions, _, _ = model(faces=reconstructed_image, emotions=None, sample=sample)
         reconstructed_emotions = torch.argmax(reconstructed_emotions, 1)
         
         for idx in range(len(labels)):
@@ -219,7 +221,7 @@ def recon_and_classiffication_accuracy(model, dataset_loader):
     return acc
 
 
-def classiffication_accuracy(model, dataset_loader):
+def classiffication_accuracy(model, dataset_loader, sample = True):
     match = 0
     total = 0
     
@@ -227,7 +229,7 @@ def classiffication_accuracy(model, dataset_loader):
         labels = sample['cat'].cuda()
         image = sample['image'].cuda()
                             
-        _, reconstructed_emotions, _, _ = model(faces=image, emotions=None)
+        _, reconstructed_emotions, _, _ = model(faces=image, emotions=None, sample=sample)
         reconstructed_emotions = torch.argmax(reconstructed_emotions, 1)
         
         for idx in range(len(labels)):

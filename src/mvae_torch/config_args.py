@@ -1,8 +1,8 @@
 class ConfigModelArgs:
     cat_dim= 8
     img_size= 64
-    z_dim=4096 # <-----4096, 8192
-    num_filters= 64
+    z_dim= 8192                 #<-----2048, 4096, 8192
+    num_filters= 64             #<-----16, 32, 64, 128
     hidden_dim= 512
     loss_weights = {'face': 1.0,'emotion': 1.0} # <-----
     expert_type= "moe"
@@ -10,15 +10,17 @@ class ConfigModelArgs:
 
 
 class ConfigTrainArgs:
-    learning_rate= 1e-4 #<------- *
-    optim_betas= [ 0.95, 0.98 ]
-    num_epochs= 20
-    batch_size= 64
+    learning_rate= 1e-3         #<--------- 1e-3 1e-4 1e-5
+    static_annealing_beta= 1e-6 #<--------- 1e-5 1e-6 1e-7
+    num_epochs= 50
+    batch_size= 128
     num_workers= 20
+    
     checkpoint_every= 20
+    optim_betas= [ 0.95, 0.98 ]
     checkpoint_path= "./"
     save_model= True
-    model_save_path= "../trained_models/ravdess_mvae_small_01.save"
+    model_save_path= "../trained_models/ravdess_mvae.save"
     seed= 100
     use_cuda= True
     annealing_type= "static" #static, linear, cyclical
@@ -32,4 +34,4 @@ class ConfigTrainArgs:
       'min_beta': 0.0001,
       'max_beta': 0.1,
     }
-    static_annealing_beta= 1e-5 #<---------
+    
