@@ -76,9 +76,9 @@ class MultimodalVariationalAutoencoder(torch.nn.Module):
         total_loss = reconstruction_loss + beta * kld_loss
 
         return {
-            "total_loss": total_loss, #total_loss,
+            "total_loss": total_loss,
             "reconstruction_loss": reconstruction_loss,
-            "kld_loss": kld_loss, #kld_loss,
+            "kld_loss": kld_loss,
             "faces_reconstruction_loss": faces_reconstruction_loss,
             "emotions_reconstruction_loss": emotions_reconstruction_loss
         }

@@ -26,27 +26,6 @@ def build_model(
 ) -> torch.nn.Module:
     # TODO: add support for loading a pretrained model
     '''
-    # Build the face modality components
-    face_encoder: torch.nn.Module = nn_modules.ImageEncoder(
-        hidden_dim=hidden_dim,
-        z_dim=latent_space_dim,
-        num_filters=num_filters
-    )
-    face_decoder: torch.nn.Module = nn_modules.ImageDecoder(
-        hidden_dim=hidden_dim,
-        z_dim=latent_space_dim,
-        num_filters=num_filters
-    )
-    
-    face_encoder: torch.nn.Module = Encoder(
-        z_dim=latent_space_dim,
-        num_filters=num_filters
-    )
-    face_decoder: torch.nn.Module = Decoder(
-        z_dim=latent_space_dim,
-        num_filters=num_filters
-    )'''
-    
     face_encoder: torch.nn.Module = FaceEncoder(
         hidden_dim=hidden_dim,
         z_dim=latent_space_dim,
@@ -56,6 +35,13 @@ def build_model(
         hidden_dim=hidden_dim,
         z_dim=latent_space_dim,
         num_filters=num_filters
+    )
+    '''
+    face_encoder: torch.nn.Module = FaceEncoder(
+        n_latents=latent_space_dim,
+    )
+    face_decoder: torch.nn.Module = FaceDecoder(
+        n_latents=latent_space_dim,
     )
 
     # Build the discrete emotion category modality components
@@ -226,7 +212,7 @@ def train(
                 emotions=None
             )
                 
-            '''    
+            '''
             f_losses: dict = eval_model_training(
                 model=mvae_model,
                 optimizer=optimizer,
