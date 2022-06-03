@@ -8,20 +8,48 @@ class Swish(nn.Module):
     def forward(self, x):
         return x * torch.sigmoid(x)
 
-'''
+#------------------------------------------------------------------------------
+class ImageEncoder(nn.Module):
+    def __init__(self, z_dim=64, hidden_dim=128):
+        super(ImageEncoder, self).__init__()
+        self.fc1 = nn.Linear(64*64*3, hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, hidden_dim)
+        self.fc_means = nn.Linear(hidden_dim, z_dim)
+        self.fc_logvar = nn.Linear(hidden_dim, z_dim)
+
+    def forward(self, x):
+        h = self.fc1(x.view(-1, IMAGESIZE))
+        h = self.fc2(h)
+        return self.fc_means(h), self.fc_logvar(h)
+
+class ImageDecoder(nn.Module):
+    def __init__(self, z_dim=64, hidden_dim=128):
+        super(ImageDecoder, self).__init__()
+        self.fc1 = nn.Linear(z_dim, hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, hidden_dim)
+        self.fc_out = nn.Linear(hidden_dim, 64*64*3)
+
+    def forward(self, z):
+        h = self.fc1(z)
+        h = self.fc2(h)
+        return self.fc_out(h)
+#------------------------------------------------------------------------------   
+#------------------------------------------------------------------------------   
 class FaceEncoder(nn.Module):
-    def __init__(self, z_dim=64, hidden_dim=512, num_filters=128):
+    def __init__(self, z_dim=64, hidden_dim=128, num_filters=128):
         super(FaceEncoder, self).__init__()
         self.nf = num_filters
         self.z_dim = z_dim
-        self.features_output = self.nf * 8 * 32 * 32
+        self.features_output = self.nf * 4 * 8 * 8
         
         self.features = nn.Sequential(
             nn.Conv2d(3, self.nf, 3, 1, 1, bias=False), nn.BatchNorm2d(self.nf), nn.ReLU(),
+            nn.MaxPool2d(2, 2),
             nn.Conv2d(self.nf, self.nf * 2, 3, 1, 1, bias=False), nn.BatchNorm2d(self.nf*2), nn.ReLU(),
             nn.MaxPool2d(2, 2),
             nn.Conv2d(self.nf * 2, self.nf * 4, 3, 1, 1, bias=False), nn.BatchNorm2d(self.nf*4), nn.ReLU(),
-            nn.Conv2d(self.nf*4, self.nf * 8, 3, 1, 1, bias=True), nn.ReLU()
+            nn.MaxPool2d(2, 2),
+            nn.Conv2d(self.nf*4, self.nf * 4, 3, 1, 1, bias=True), nn.ReLU()
         )
         
         self.z_loc_layer = nn.Sequential(
@@ -51,31 +79,36 @@ class FaceDecoder(nn.Module):
         self.z_dim = z_dim
         
         self.linear =  nn.Sequential(
-            nn.Linear(z_dim, self.nf * 8 * 32 * 32),
+            nn.Linear(z_dim, self.nf * 4 * 8 * 8),
             nn.ReLU())
         
         self.hallucinate = nn.Sequential(
-            nn.Conv2d(self.nf * 8, self.nf * 4, 3, 1, 1, bias=False), nn.BatchNorm2d(self.nf * 4), nn.ReLU(),
+            nn.Conv2d(self.nf * 4, self.nf * 4, 3, 1, 1, bias=False), nn.BatchNorm2d(self.nf * 4), nn.ReLU(),
+            nn.Upsample(scale_factor = 2, mode = "nearest"),
             nn.Conv2d(self.nf * 4, self.nf * 2, 3, 1, 1, bias=False), nn.BatchNorm2d(self.nf * 2), nn.ReLU(),
             nn.Upsample(scale_factor = 2, mode = "nearest"),
             nn.Conv2d(self.nf * 2, self.nf, 3, 1, 1, bias=False), nn.BatchNorm2d(self.nf), nn.ReLU(),
+            nn.Upsample(scale_factor = 2, mode = "nearest"),
             nn.Conv2d(self.nf, 3, 3, 1, 1, bias=True), nn.ReLU()
         ) 
 
     def forward(self, z):
         z = self.linear(z)
-        z = z.view(-1, self.nf * 8, 32, 32)
+        z = z.view(-1, self.nf * 4, 8, 8)
         image = self.hallucinate(z) 
-        return image'''
-    
-class FaceEncoder(nn.Module):
+        return image
+
+#------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
+
+class DCGANFaceEncoder(nn.Module):
     """Parametrizes q(z|x).
     This is the standard DCGAN architecture.
     @param n_latents: integer
                       number of latent variable dimensions.
     """
-    def __init__(self, n_latents):
-        super(FaceEncoder, self).__init__()
+    def __init__(self, z_dim):
+        super(DCGANFaceEncoder, self).__init__()
         self.features = nn.Sequential(
             nn.Conv2d(3, 32, 4, 2, 1, bias=False),
             Swish(),
@@ -88,31 +121,36 @@ class FaceEncoder(nn.Module):
             nn.Conv2d(128, 256, 4, 1, 0, bias=False),
             nn.BatchNorm2d(256),
             Swish())
-        self.classifier = nn.Sequential(
-            nn.Linear(256 * 5 * 5, 512),
+         # Here, we define two layers, one to give z_loc and one to give z_scale
+        self.z_loc_layer = nn.Sequential(
+            nn.Linear(256 * 5 * 5, 512), # it's 256 * 5 * 5 if input is 64x64.
             Swish(),
             nn.Dropout(p=0.1),
-            nn.Linear(512, n_latents * 2))
-        self.n_latents = n_latents
+            nn.Linear(512, z_dim))
+        self.z_scale_layer = nn.Sequential(
+            nn.Linear(256 * 5 * 5, 512), # it's 256 * 5 * 5 if input is 64x64.
+            Swish(),
+            nn.Dropout(p=0.1),
+            nn.Linear(512, z_dim))
 
-    def forward(self, x):
-        n_latents = self.n_latents
-        x = self.features(x)
-        x = x.view(-1, 256 * 5 * 5)
-        x = self.classifier(x)
-        return x[:, :n_latents], x[:, n_latents:]
+    def forward(self, image):
+        hidden = self.features(image)
+        hidden = hidden.view(-1, 256 * 5 * 5) # it's 256 * 5 * 5 if input is 64x64.
+        z_loc = self.z_loc_layer(hidden)
+        z_scale = torch.exp(self.z_scale_layer(hidden)) #add exp so it's always positive
+        return z_loc, z_scale
 
 
-class FaceDecoder(nn.Module):
+class DCGANFaceDecoder(nn.Module):
     """Parametrizes p(x|z). 
     This is the standard DCGAN architecture.
     @param n_latents: integer
                       number of latent variable dimensions.
     """
-    def __init__(self, n_latents):
-        super(FaceDecoder, self).__init__()
+    def __init__(self, z_dim):
+        super(DCGANFaceDecoder, self).__init__()
         self.upsample = nn.Sequential(
-            nn.Linear(n_latents, 256 * 5 * 5),
+            nn.Linear(z_dim, 256 * 5 * 5),
             Swish())
         self.hallucinate = nn.Sequential(
             nn.ConvTranspose2d(256, 128, 4, 1, 0, bias=False),
@@ -124,7 +162,7 @@ class FaceDecoder(nn.Module):
             nn.ConvTranspose2d(64, 32, 4, 2, 1, bias=False),
             nn.BatchNorm2d(32),
             Swish(),
-            nn.ConvTranspose2d(32, 3, 4, 2, 1, bias=False))
+            nn.ConvTranspose2d(32, 3, 4, 2, 1, bias=True))
 
     def forward(self, z):
         # the input will be a vector of size |n_latents|
@@ -133,6 +171,8 @@ class FaceDecoder(nn.Module):
         z = self.hallucinate(z)
         return z  # NOTE: no sigmoid here. See train.py
 
+#------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 
 class EmotionEncoder(nn.Module):
     def __init__(self, input_dim, z_dim=64, hidden_dim=512, use_cuda=True):

@@ -142,7 +142,7 @@ class ProductOfExperts(Expert):
         self._eps: float = num_const
 
     def forward(self, loc: torch.Tensor, scale: torch.Tensor) -> Tuple[torch.Tensor, ...]:
-        scale += self._eps
+        scale = scale + self._eps
         # Precision of i-th Gaussian expert (T = 1/sigma^2)
         precision = 1. / scale
 
@@ -152,29 +152,23 @@ class ProductOfExperts(Expert):
         return product_loc, product_scale
 
 
-def test_batch(model, dataset_loader, img_size=64,sample=True, use_cuda=True):
-    model.train()
+def generation_test(model, dataset_loader, num_samples=4, img_size=64, use_cuda=True):
+    model.eval()
     plt.figure(figsize = (40,10))
     
     sample = next(iter(dataset_loader))
     images = sample['image']
-    labels = sample['cat']
     
     if use_cuda:
         images = images.cuda()
-        labels = labels.cuda()
         
     batch_size = images.shape[0]
-        
     input_array = numpy.zeros(shape=(img_size, 1, 3), dtype="uint8")
     reconstructed_array = numpy.zeros(shape=(img_size, 1, 3), dtype="uint8")
-    reconstructed_emotions = []
     
-    reconstructed_images, _, _, _ = model(faces=None, emotions=labels, sample=sample)
-    _, reconstructed_emotions, _, _ = model(faces=reconstructed_images, emotions=None, sample=sample)
+    reconstructed_images, _, _, _, _ = model(faces=images, emotions=None)
     
-
-    for idx in range(4):
+    for idx in range(num_samples):
         input_image = images[idx]
         
         # storing the input image
@@ -186,56 +180,96 @@ def test_batch(model, dataset_loader, img_size=64,sample=True, use_cuda=True):
         
         reconstructed_img = reconstructed_images[idx].cpu().view(3, img_size, img_size).detach().numpy()
         reconstructed_img = numpy.array(reconstructed_img*255., dtype='uint8').transpose((1, 2, 0))
-        reconstructed_array = numpy.concatenate((reconstructed_array, reconstructed_img), axis=1)
-        
+        reconstructed_array = numpy.concatenate((reconstructed_array, reconstructed_img), axis=1)  
         
     input_array = input_array[:,1:,:]
     reconstructed_array = reconstructed_array[:,1:,:]
     display_array = numpy.concatenate((input_array, reconstructed_array), axis=0)
     plt.imshow(display_array)
     
-    print([Rd.emocat[label.item()] for label in labels[:4]])
-    print([Rd.emocat[emo.item()] for emo in torch.argmax(reconstructed_emotions, 1)[:4]])
-    
     return display_array
-    
 
-def recon_and_classiffication_accuracy(model, dataset_loader, sample = True):
+
+def display_recontructed_emotions(model, img_size=64, use_cuda=True, model_eval=True):
+    if model_eval:
+        model.eval()
+    else:
+        model.train()
+        
+    plt.figure(figsize = (40,40))
+    labels = torch.tensor(list(Rd.emocat.keys()))
+    
+    if use_cuda:
+        labels = labels.to('cuda')
+    
+    reconstructed_emotions = []
+    reconstructed_array = numpy.zeros(shape=(img_size, 1, 3), dtype="uint8")
+    
+    with torch.no_grad():
+        reconstructed_images, _, _, _, _ = model(faces=None, emotions=labels)
+        _, reconstructed_emotions, _, _, _ = model(faces=reconstructed_images, emotions=None)
+
+    for idx in range(len(labels)):        
+        reconstructed_img = reconstructed_images[idx].cpu().view(3, img_size, img_size).detach().numpy()
+        reconstructed_img = numpy.array(reconstructed_img*255., dtype='uint8').transpose((1, 2, 0))
+        reconstructed_array = numpy.concatenate((reconstructed_array, reconstructed_img), axis=1)
+        
+    reconstructed_array = reconstructed_array[:,1:,:]
+    plt.imshow(reconstructed_array)
+    
+    print('\t\t'.join(Rd.emocat[label.item()] for label in labels))
+    
+    return reconstructed_array
+
+
+def recon_and_classiffication_accuracy(model, dataset_loader, model_eval = True):
+    if model_eval:
+        model.eval()
+    else:
+        model.train()
+    
     match = 0
     total = 0
     
-    for sample in tqdm.tqdm(iter(dataset_loader)):
-        labels = sample['cat'].cuda()
-        image = sample['image'].cuda()
-                            
-        reconstructed_image, _, _, _ = model(faces=None, emotions=labels)
-        _, reconstructed_emotions, _, _ = model(faces=reconstructed_image, emotions=None, sample=sample)
-        reconstructed_emotions = torch.argmax(reconstructed_emotions, 1)
-        
-        for idx in range(len(labels)):
-            total += 1
-            if labels[idx] == reconstructed_emotions[idx]:
-                match += 1
+    with torch.no_grad():
+        for sample in tqdm.tqdm(iter(dataset_loader)):
+            labels = sample['cat'].cuda()
+            image = sample['image'].cuda()
+
+            reconstructed_image, _, _, _, _ = model(faces=None, emotions=labels)
+            _, reconstructed_emotions, _, _, _ = model(faces=reconstructed_image, emotions=None)
+            reconstructed_emotions = torch.argmax(reconstructed_emotions, 1)
+
+            for idx in range(len(labels)):
+                total += 1
+                if labels[idx] == reconstructed_emotions[idx]:
+                    match += 1
     
     acc = match / total
     return acc
 
 
-def classiffication_accuracy(model, dataset_loader, sample = True):
+def classiffication_accuracy(model, dataset_loader, model_eval = True):
+    if model_eval:
+        model.eval()
+    else:
+        model.train()
+        
     match = 0
     total = 0
     
-    for sample in tqdm.tqdm(iter(dataset_loader)):
-        labels = sample['cat'].cuda()
-        image = sample['image'].cuda()
-                            
-        _, reconstructed_emotions, _, _ = model(faces=image, emotions=None, sample=sample)
-        reconstructed_emotions = torch.argmax(reconstructed_emotions, 1)
-        
-        for idx in range(len(labels)):
-            total += 1
-            if labels[idx] == reconstructed_emotions[idx]:
-                match += 1
+    with torch.no_grad():
+        for sample in tqdm.tqdm(iter(dataset_loader)):
+            labels = sample['cat'].cuda()
+            image = sample['image'].cuda()
+
+            _, reconstructed_emotions, _, _, _ = model(faces=image, emotions=None)
+            reconstructed_emotions = torch.argmax(reconstructed_emotions, 1)
+
+            for idx in range(len(labels)):
+                total += 1
+                if labels[idx] == reconstructed_emotions[idx]:
+                    match += 1
     
     acc = match / total
     return acc
@@ -254,11 +288,19 @@ def print_losses(training_losses, title=None, skipframe=0):
     ax1.plot(training_losses['emotion_loss'].total_loss[skipframe:], color='green', label='emotion')
     ax1.plot(training_losses['face_loss'].total_loss[skipframe:], color='blue', label='face')
     ax1.legend(loc="upper right")
-
+    
+    '''
     ax2.set_title('KLD loss')
     ax2.plot(training_losses['multimodal_loss'].kld_loss[skipframe:], color='red', label='multimodal')
     ax2.plot(training_losses['emotion_loss'].kld_loss[skipframe:], color='green', label='emotion')
     ax2.plot(training_losses['face_loss'].kld_loss[skipframe:], color='blue', label='face')
+    ax2.legend(loc="upper right")
+    '''
+    
+    ax2.set_title('MMD')
+    ax2.plot(training_losses['multimodal_loss'].mmd[skipframe:], color='red', label='multimodal')
+    ax2.plot(training_losses['emotion_loss'].mmd[skipframe:], color='green', label='emotion')
+    ax2.plot(training_losses['face_loss'].mmd[skipframe:], color='blue', label='face')
     ax2.legend(loc="upper right")
 
     ax3.set_title('Face reconstruction loss')
@@ -271,7 +313,7 @@ def print_losses(training_losses, title=None, skipframe=0):
     ax4.plot(training_losses['multimodal_loss'].emotions_reconstruction_loss[skipframe:], color='red', label='multimodal')
     ax4.plot(training_losses['emotion_loss'].emotions_reconstruction_loss[skipframe:], color='green', label='emotion')
     #ax4.plot(training_losses['face_loss'].emotions_reconstruction_loss[skipframe:], color='blue', label='face')
-    ax4.legend(loc="upper right")
+    ax4.legend(loc="upper right")    
 
     # Hide x labels and tick labels for top plots and y ticks for right plots.
     #for ax in fig.get_axes():
