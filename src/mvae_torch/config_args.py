@@ -4,14 +4,14 @@ class ConfigModelArgs:
     z_dim= 50                   #<----- 
     num_filters= 32             #<----- 32, 64, 128
     hidden_dim= 128
-    loss_weights = {'face': 1.0,'emotion': 10.0} # <-----
+    loss_weights = {'face': 1.0,'emotion': 1.0} # <-----
     expert_type= "poe" # moe, poe
-    dataset_path= '/home/studenti/ballerini/datasets/RAVDESS_frames'
+    dataset_path= '/home/studenti/ballerini/datasets/RAVDESS_frames_ds'
 
 
 class ConfigTrainArgs:
     learning_rate= 1e-4         #<--------- 1e-3 1e-4 1e-5
-    num_epochs= 25
+    num_epochs= 100
     batch_size= 64
     num_workers= 32
     
