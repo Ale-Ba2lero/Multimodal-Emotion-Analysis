@@ -151,59 +151,16 @@ class ProductOfExperts(Expert):
 
         return product_loc, product_scale
 
-
-def generation_test(model, dataset_loader, num_samples=4, img_size=64, use_cuda=True):
-    model.eval()
-    plt.figure(figsize = (40,10))
-    
-    sample = next(iter(dataset_loader))
-    images = sample['image']
-    
-    if use_cuda:
-        images = images.cuda()
+def display_recontructed_images(model, img_size=64, use_cuda=True, model_eval=True):
+    if model_eval: model.eval()
+    else: model.train()
         
-    batch_size = images.shape[0]
-    input_array = numpy.zeros(shape=(img_size, 1, 3), dtype="uint8")
-    reconstructed_array = numpy.zeros(shape=(img_size, 1, 3), dtype="uint8")
-    
-    reconstructed_images, _, _, _, _ = model(faces=images, emotions=None)
-    
-    for idx in range(num_samples):
-        input_image = images[idx]
-        
-        # storing the input image
-        input_image_display = numpy.array(input_image.cpu()*255., dtype='uint8').transpose((1, 2, 0))
-        input_array = numpy.concatenate((input_array, input_image_display), axis=1)
-        
-        # generating the reconstructed image and adding to array
-        input_image = input_image.view(1, 3, img_size, img_size)
-        
-        reconstructed_img = reconstructed_images[idx].cpu().view(3, img_size, img_size).detach().numpy()
-        reconstructed_img = numpy.array(reconstructed_img*255., dtype='uint8').transpose((1, 2, 0))
-        reconstructed_array = numpy.concatenate((reconstructed_array, reconstructed_img), axis=1)  
-        
-    input_array = input_array[:,1:,:]
-    reconstructed_array = reconstructed_array[:,1:,:]
-    display_array = numpy.concatenate((input_array, reconstructed_array), axis=0)
-    plt.imshow(display_array)
-    
-    return display_array
-
-
-def display_recontructed_emotions(model, img_size=64, use_cuda=True, model_eval=True):
-    if model_eval:
-        model.eval()
-    else:
-        model.train()
-        
-    plt.figure(figsize = (40,40))
+    fig, ax = plt.subplots(nrows=2, ncols=4,figsize=[15, 8])
     labels = torch.tensor(list(Rd.emocat.keys()))
     
-    if use_cuda:
-        labels = labels.to('cuda')
+    if use_cuda: labels = labels.to('cuda')
     
-    reconstructed_emotions = []
-    reconstructed_array = numpy.zeros(shape=(img_size, 1, 3), dtype="uint8")
+    rec_imgs = []
     
     with torch.no_grad():
         reconstructed_images, _, _, _, _ = model(faces=None, emotions=labels)
@@ -212,15 +169,13 @@ def display_recontructed_emotions(model, img_size=64, use_cuda=True, model_eval=
     for idx in range(len(labels)):        
         reconstructed_img = reconstructed_images[idx].cpu().view(3, img_size, img_size).detach().numpy()
         reconstructed_img = numpy.array(reconstructed_img*255., dtype='uint8').transpose((1, 2, 0))
-        reconstructed_array = numpy.concatenate((reconstructed_array, reconstructed_img), axis=1)
+        rec_imgs.append(reconstructed_img)
         
-    reconstructed_array = reconstructed_array[:,1:,:]
-    plt.imshow(reconstructed_array)
+    for i, axi in enumerate(ax.flat):
+        axi.imshow(rec_imgs[i])
+        axi.set_title(Rd.emocat[labels[i].item()], fontsize=20, color="green")
     
-    print('\t\t'.join(Rd.emocat[label.item()] for label in labels))
-    
-    return reconstructed_array
-
+    plt.show()
 
 def recon_and_classiffication_accuracy(model, dataset_loader, model_eval = True):
     if model_eval:
