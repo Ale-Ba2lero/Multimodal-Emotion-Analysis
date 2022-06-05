@@ -177,7 +177,7 @@ def display_recontructed_images(model, img_size=64, use_cuda=True, model_eval=Tr
     
     plt.show()
 
-def recon_and_classiffication_accuracy(model, dataset_loader, model_eval = True):
+def recon_and_classiffication_accuracy(model, dataset_loader, num_samples=100, model_eval = True):
     if model_eval:
         model.eval()
     else:
@@ -186,22 +186,26 @@ def recon_and_classiffication_accuracy(model, dataset_loader, model_eval = True)
     match = 0
     total = 0
     
+    emo_acc = torch.zeros((8,), dtype=torch.int32)
+    total_emo = torch.zeros((8,), dtype=torch.int32)
+    
     with torch.no_grad():
-        for sample in tqdm.tqdm(iter(dataset_loader)):
-            labels = sample['cat'].cuda()
-            image = sample['image'].cuda()
-
-            reconstructed_image, _, _, _, _ = model(faces=None, emotions=labels)
+        for sample in tqdm.tqdm(range(num_samples)):
+            random_labels = torch.randint(low=0, high=8, size=(16,)).to("cuda")
+            reconstructed_image, _, _, _, _ = model(faces=None, emotions=random_labels)
             _, reconstructed_emotions, _, _, _ = model(faces=reconstructed_image, emotions=None)
             reconstructed_emotions = torch.argmax(reconstructed_emotions, 1)
 
-            for idx in range(len(labels)):
+            for idx in range(len(random_labels)):
                 total += 1
-                if labels[idx] == reconstructed_emotions[idx]:
+                total_emo[random_labels[idx]] += 1
+                if random_labels[idx] == reconstructed_emotions[idx]:
                     match += 1
+                    emo_acc[random_labels[idx]] += 1
     
     acc = match / total
-    return acc
+    emo_acc = emo_acc / total_emo
+    return acc, emo_acc
 
 
 def classiffication_accuracy(model, dataset_loader, model_eval = True):

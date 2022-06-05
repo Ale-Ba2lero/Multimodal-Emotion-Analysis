@@ -18,7 +18,7 @@ class ImageEncoder(nn.Module):
         self.fc_logvar = nn.Linear(hidden_dim, z_dim)
 
     def forward(self, x):
-        h = self.fc1(x.view(-1, IMAGESIZE))
+        h = self.fc1(x.view(-1, 64*64*3))
         h = self.fc2(h)
         return self.fc_means(h), self.fc_logvar(h)
 
@@ -32,7 +32,9 @@ class ImageDecoder(nn.Module):
     def forward(self, z):
         h = self.fc1(z)
         h = self.fc2(h)
-        return self.fc_out(h)
+        out = self.fc_out(h)
+        out = out.view(-1, 3, 64, 64)
+        return out
 #------------------------------------------------------------------------------   
 #------------------------------------------------------------------------------   
 class FaceEncoder(nn.Module):
@@ -43,11 +45,14 @@ class FaceEncoder(nn.Module):
         self.features_output = self.nf * 4 * 8 * 8
         
         self.features = nn.Sequential(
-            nn.Conv2d(3, self.nf, 3, 1, 1, bias=False), nn.BatchNorm2d(self.nf), nn.ReLU(),
+            nn.Conv2d(3, self.nf, 3, 1, 1, bias=False), 
+            nn.Dropout(p=0.1), nn.BatchNorm2d(self.nf), nn.ReLU(),
             nn.MaxPool2d(2, 2),
-            nn.Conv2d(self.nf, self.nf * 2, 3, 1, 1, bias=False), nn.BatchNorm2d(self.nf*2), nn.ReLU(),
+            nn.Conv2d(self.nf, self.nf * 2, 3, 1, 1, bias=False), 
+            nn.Dropout(p=0.1), nn.BatchNorm2d(self.nf*2), nn.ReLU(),
             nn.MaxPool2d(2, 2),
-            nn.Conv2d(self.nf * 2, self.nf * 4, 3, 1, 1, bias=False), nn.BatchNorm2d(self.nf*4), nn.ReLU(),
+            nn.Conv2d(self.nf * 2, self.nf * 4, 3, 1, 1, bias=False), 
+            nn.Dropout(p=0.1), nn.BatchNorm2d(self.nf*4), nn.ReLU(),
             nn.MaxPool2d(2, 2),
             nn.Conv2d(self.nf*4, self.nf * 4, 3, 1, 1, bias=True), nn.ReLU()
         )
@@ -55,13 +60,13 @@ class FaceEncoder(nn.Module):
         self.z_loc_layer = nn.Sequential(
             nn.Linear(self.features_output, hidden_dim),
             nn.ReLU(),
-            nn.Dropout(p=0.1),
+            nn.Dropout(p=0.3),
             nn.Linear(hidden_dim, z_dim))
         
         self.z_scale_layer = nn.Sequential(
             nn.Linear(self.features_output, hidden_dim),
             nn.ReLU(),
-            nn.Dropout(p=0.1),
+            nn.Dropout(p=0.3),
             nn.Linear(hidden_dim, z_dim))
         
     def forward(self, image):
@@ -79,15 +84,18 @@ class FaceDecoder(nn.Module):
         self.z_dim = z_dim
         
         self.linear =  nn.Sequential(
-            nn.Linear(z_dim, self.nf * 4 * 8 * 8),
+            nn.Linear(z_dim, self.nf * 4 * 8 * 8), nn.Dropout(p=0.3),
             nn.ReLU())
         
         self.hallucinate = nn.Sequential(
-            nn.Conv2d(self.nf * 4, self.nf * 4, 3, 1, 1, bias=False), nn.BatchNorm2d(self.nf * 4), nn.ReLU(),
+            nn.Conv2d(self.nf * 4, self.nf * 4, 3, 1, 1, bias=False), 
+            nn.Dropout(p=0.1), nn.BatchNorm2d(self.nf * 4), nn.ReLU(),
             nn.Upsample(scale_factor = 2, mode = "nearest"),
-            nn.Conv2d(self.nf * 4, self.nf * 2, 3, 1, 1, bias=False), nn.BatchNorm2d(self.nf * 2), nn.ReLU(),
+            nn.Conv2d(self.nf * 4, self.nf * 2, 3, 1, 1, bias=False), 
+            nn.Dropout(p=0.1), nn.BatchNorm2d(self.nf * 2), nn.ReLU(),
             nn.Upsample(scale_factor = 2, mode = "nearest"),
-            nn.Conv2d(self.nf * 2, self.nf, 3, 1, 1, bias=False), nn.BatchNorm2d(self.nf), nn.ReLU(),
+            nn.Conv2d(self.nf * 2, self.nf, 3, 1, 1, bias=False), 
+            nn.Dropout(p=0.1), nn.BatchNorm2d(self.nf), nn.ReLU(),
             nn.Upsample(scale_factor = 2, mode = "nearest"),
             nn.Conv2d(self.nf, 3, 3, 1, 1, bias=True), nn.ReLU()
         ) 
@@ -107,35 +115,36 @@ class DCGANFaceEncoder(nn.Module):
     @param n_latents: integer
                       number of latent variable dimensions.
     """
-    def __init__(self, z_dim):
+    def __init__(self, z_dim, num_filters=16):
         super(DCGANFaceEncoder, self).__init__()
+        self.num_filters = num_filters
         self.features = nn.Sequential(
-            nn.Conv2d(3, 32, 4, 2, 1, bias=False),
+            nn.Conv2d(3, num_filters, 4, 2, 1, bias=False),
             Swish(),
-            nn.Conv2d(32, 64, 4, 2, 1, bias=False),
-            nn.BatchNorm2d(64),
+            nn.Conv2d(num_filters, num_filters*2, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(num_filters*2),
             Swish(),
-            nn.Conv2d(64, 128, 4, 2, 1, bias=False),
-            nn.BatchNorm2d(128),
+            nn.Conv2d(num_filters*2, num_filters*4, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(num_filters*4),
             Swish(),
-            nn.Conv2d(128, 256, 4, 1, 0, bias=False),
-            nn.BatchNorm2d(256),
+            nn.Conv2d(num_filters*4, num_filters*8, 4, 1, 0, bias=False),
+            nn.BatchNorm2d(num_filters*8),
             Swish())
          # Here, we define two layers, one to give z_loc and one to give z_scale
         self.z_loc_layer = nn.Sequential(
-            nn.Linear(256 * 5 * 5, 512), # it's 256 * 5 * 5 if input is 64x64.
+            nn.Linear(num_filters * 8 * 5 * 5, 512), # it's 256 * 5 * 5 if input is 64x64.
             Swish(),
             nn.Dropout(p=0.1),
             nn.Linear(512, z_dim))
         self.z_scale_layer = nn.Sequential(
-            nn.Linear(256 * 5 * 5, 512), # it's 256 * 5 * 5 if input is 64x64.
+            nn.Linear(num_filters * 8 * 5 * 5, 512), # it's 256 * 5 * 5 if input is 64x64.
             Swish(),
             nn.Dropout(p=0.1),
             nn.Linear(512, z_dim))
 
     def forward(self, image):
         hidden = self.features(image)
-        hidden = hidden.view(-1, 256 * 5 * 5) # it's 256 * 5 * 5 if input is 64x64.
+        hidden = hidden.view(-1, self.num_filters * 8 * 5 * 5) # it's 256 * 5 * 5 if input is 64x64.
         z_loc = self.z_loc_layer(hidden)
         z_scale = torch.exp(self.z_scale_layer(hidden)) #add exp so it's always positive
         return z_loc, z_scale
@@ -147,27 +156,28 @@ class DCGANFaceDecoder(nn.Module):
     @param n_latents: integer
                       number of latent variable dimensions.
     """
-    def __init__(self, z_dim):
+    def __init__(self, z_dim, num_filters=16):
         super(DCGANFaceDecoder, self).__init__()
+        self.num_filters = num_filters
         self.upsample = nn.Sequential(
-            nn.Linear(z_dim, 256 * 5 * 5),
+            nn.Linear(z_dim, num_filters * 8 * 5 * 5),
             Swish())
         self.hallucinate = nn.Sequential(
-            nn.ConvTranspose2d(256, 128, 4, 1, 0, bias=False),
-            nn.BatchNorm2d(128),
+            nn.ConvTranspose2d(num_filters * 8, num_filters * 4, 4, 1, 0, bias=False),
+            nn.BatchNorm2d(num_filters * 4),
             Swish(),
-            nn.ConvTranspose2d(128, 64, 4, 2, 1, bias=False),
-            nn.BatchNorm2d(64),
+            nn.ConvTranspose2d(num_filters * 4,  num_filters * 2, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(num_filters * 2),
             Swish(),
-            nn.ConvTranspose2d(64, 32, 4, 2, 1, bias=False),
-            nn.BatchNorm2d(32),
+            nn.ConvTranspose2d(num_filters * 2, num_filters, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(num_filters),
             Swish(),
-            nn.ConvTranspose2d(32, 3, 4, 2, 1, bias=True))
+            nn.ConvTranspose2d(num_filters, 3, 4, 2, 1, bias=True))
 
     def forward(self, z):
         # the input will be a vector of size |n_latents|
         z = self.upsample(z)
-        z = z.view(-1, 256, 5, 5)
+        z = z.view(-1, self.num_filters * 8, 5, 5)
         z = self.hallucinate(z)
         return z  # NOTE: no sigmoid here. See train.py
 

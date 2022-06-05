@@ -9,7 +9,7 @@ from tqdm import tqdm
 from torch.utils.data import Dataset, DataLoader
 
 from multimodal_vae import MultimodalVariationalAutoencoder
-from nn_modules import FaceEncoder, FaceDecoder, EmotionEncoder, EmotionDecoder , DCGANFaceEncoder, DCGANFaceDecoder
+import nn_modules as nnm
 
 from torch_mvae_util import Expert, ProductOfExperts, MixtureOfExpertsComparableComplexity, AnnealingBetaGeneratorFactory
 from config_args import ConfigTrainArgs
@@ -26,21 +26,23 @@ def build_model(
 ) -> torch.nn.Module:
     # TODO: add support for loading a pretrained model
 
-    face_encoder: torch.nn.Module = DCGANFaceEncoder(
+    face_encoder: torch.nn.Module = nnm.DCGANFaceEncoder(
         z_dim=latent_space_dim,
+        num_filters=num_filters
     )
-    face_decoder: torch.nn.Module = DCGANFaceDecoder(
+    face_decoder: torch.nn.Module = nnm.DCGANFaceDecoder(
         z_dim=latent_space_dim,
+        num_filters=num_filters
     )
 
     # Build the discrete emotion category modality components
-    emocat_encoder: torch.nn.Module = EmotionEncoder(
+    emocat_encoder: torch.nn.Module = nnm.EmotionEncoder(
         input_dim=cat_dim,
         hidden_dim=hidden_dim,
         z_dim=latent_space_dim,
         use_cuda=use_cuda
     )
-    emocat_decoder: torch.nn.Module = EmotionDecoder(
+    emocat_decoder: torch.nn.Module = nnm.EmotionDecoder(
         output_dim=cat_dim,
         hidden_dim=hidden_dim,
         z_dim=latent_space_dim,
