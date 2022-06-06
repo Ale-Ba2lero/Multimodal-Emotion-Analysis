@@ -176,6 +176,7 @@ def display_recontructed_images(model, img_size=64, use_cuda=True, model_eval=Tr
         axi.set_title(Rd.emocat[labels[i].item()], fontsize=20, color="green")
     
     plt.show()
+    return rec_imgs
 
 def recon_and_classiffication_accuracy(model, dataset_loader, num_samples=100, model_eval = True):
     if model_eval:
@@ -236,7 +237,7 @@ def classiffication_accuracy(model, dataset_loader, model_eval = True):
 
 def print_losses(training_losses, title=None, skipframe=0):
     
-    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(14, 10))
+    fig, ((ax1, ax2, ax3), (ax4, ax5, ax6)) = plt.subplots(2, 3, figsize=(14, 10))
     if title is not None:
         fig.suptitle(title,
           fontsize=20,
@@ -248,31 +249,29 @@ def print_losses(training_losses, title=None, skipframe=0):
     ax1.plot(training_losses['face_loss'].total_loss[skipframe:], color='blue', label='face')
     ax1.legend(loc="upper right")
     
-    '''
     ax2.set_title('KLD loss')
     ax2.plot(training_losses['multimodal_loss'].kld_loss[skipframe:], color='red', label='multimodal')
     ax2.plot(training_losses['emotion_loss'].kld_loss[skipframe:], color='green', label='emotion')
     ax2.plot(training_losses['face_loss'].kld_loss[skipframe:], color='blue', label='face')
     ax2.legend(loc="upper right")
-    '''
     
-    ax2.set_title('MMD')
-    ax2.plot(training_losses['multimodal_loss'].mmd[skipframe:], color='red', label='multimodal')
-    ax2.plot(training_losses['emotion_loss'].mmd[skipframe:], color='green', label='emotion')
-    ax2.plot(training_losses['face_loss'].mmd[skipframe:], color='blue', label='face')
-    ax2.legend(loc="upper right")
-
-    ax3.set_title('Face reconstruction loss')
-    ax3.plot(training_losses['multimodal_loss'].faces_reconstruction_loss[skipframe:], color='red', label='multimodal')
-    #ax3.plot(training_losses['emotion_loss'].faces_reconstruction_loss[skipframe:], color='green', label='emotion')
-    ax3.plot(training_losses['face_loss'].faces_reconstruction_loss[skipframe:], color='blue', label='face')
+    ax3.set_title('MMD Loss')
+    ax3.plot(training_losses['multimodal_loss'].mmd_loss[skipframe:], color='red', label='multimodal')
+    ax3.plot(training_losses['emotion_loss'].mmd_loss[skipframe:], color='green', label='emotion')
+    ax3.plot(training_losses['face_loss'].mmd_loss[skipframe:], color='blue', label='face')
     ax3.legend(loc="upper right")
 
-    ax4.set_title('Emotion reconstruction loss')
-    ax4.plot(training_losses['multimodal_loss'].emotions_reconstruction_loss[skipframe:], color='red', label='multimodal')
-    ax4.plot(training_losses['emotion_loss'].emotions_reconstruction_loss[skipframe:], color='green', label='emotion')
-    #ax4.plot(training_losses['face_loss'].emotions_reconstruction_loss[skipframe:], color='blue', label='face')
-    ax4.legend(loc="upper right")    
+    ax4.set_title('Face reconstruction loss')
+    ax4.plot(training_losses['multimodal_loss'].faces_reconstruction_loss[skipframe:], color='red', label='multimodal')
+    #ax4.plot(training_losses['emotion_loss'].faces_reconstruction_loss[skipframe:], color='green', label='emotion')
+    ax4.plot(training_losses['face_loss'].faces_reconstruction_loss[skipframe:], color='blue', label='face')
+    ax4.legend(loc="upper right")
+
+    ax5.set_title('Emotion reconstruction loss')
+    ax5.plot(training_losses['multimodal_loss'].emotions_reconstruction_loss[skipframe:], color='red', label='multimodal')
+    ax5.plot(training_losses['emotion_loss'].emotions_reconstruction_loss[skipframe:], color='green', label='emotion')
+    #ax5.plot(training_losses['face_loss'].emotions_reconstruction_loss[skipframe:], color='blue', label='face')
+    ax5.legend(loc="upper right")    
 
     # Hide x labels and tick labels for top plots and y ticks for right plots.
     #for ax in fig.get_axes():

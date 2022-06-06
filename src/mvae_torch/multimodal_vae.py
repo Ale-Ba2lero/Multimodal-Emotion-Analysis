@@ -91,21 +91,24 @@ class MultimodalVariationalAutoencoder(torch.nn.Module):
         reconstruction_loss = faces_reconstruction_loss + emotions_reconstruction_loss
 
         # Calculate the KLD loss
-        #log_var = torch.log(torch.square(z_scale))
-        #kld_loss = torch.mean(-0.5 * torch.sum(1 + log_var - z_loc ** 2 - log_var.exp(), dim=1), dim=0)
+        log_var = torch.log(torch.square(z_scale))
+        kld_loss = torch.mean(-0.5 * torch.sum(1 + log_var - z_loc ** 2 - log_var.exp(), dim=1), dim=0)
         #total_loss = reconstruction_loss + beta * kld_loss
         true_samples = Variable(
                 torch.randn_like(latent_sample),
                 requires_grad=False
             )
+        # Calculate the KLD loss
         mmd_loss = self.compute_mmd(true_samples, latent_sample)
-        total_loss = reconstruction_loss + mmd_loss
+                    
+        # Calculate the Total Loss
+        total_loss = reconstruction_loss + beta * kld_loss + mmd_loss
 
         return {
             "total_loss": total_loss,
             "reconstruction_loss": reconstruction_loss,
-            #"kld_loss": kld_loss,
-            "mmd":mmd_loss,
+            "kld_loss": kld_loss,
+            "mmd_loss":mmd_loss,
             "faces_reconstruction_loss": faces_reconstruction_loss,
             "emotions_reconstruction_loss": emotions_reconstruction_loss
         }
@@ -192,6 +195,9 @@ class MultimodalVariationalAutoencoder(torch.nn.Module):
         
         epsilon: torch.Tensor = torch.randn_like(z_loc_expert)
         latent_sample: torch.Tensor = z_loc_expert + epsilon * z_scale_expert
+        
+        #latent_sample: torch.Tensor = torch.normal(mean=z_loc_expert, std=z_scale_expert)
+        
 
         # Reconstruct inputs based on that Gaussian sample
         face_reconstruction, emotions_reconstruction = self.generate(
