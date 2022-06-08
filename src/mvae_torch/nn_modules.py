@@ -37,7 +37,7 @@ class ImageDecoder(nn.Module):
         return out
 #------------------------------------------------------------------------------   
 #------------------------------------------------------------------------------   
-class FaceEncoder(nn.Module):
+class CnnFaceEncoder(nn.Module):
     def __init__(self, z_dim=64, hidden_dim=128, num_filters=128):
         super(FaceEncoder, self).__init__()
         self.nf = num_filters
@@ -77,7 +77,7 @@ class FaceEncoder(nn.Module):
         return z_loc, z_scale
     
     
-class FaceDecoder(nn.Module):
+class CnnFaceDecoder(nn.Module):
     def __init__(self, z_dim=64, hidden_dim=512, num_filters=128):
         super(FaceDecoder, self).__init__()
         self.nf = num_filters
@@ -109,14 +109,14 @@ class FaceDecoder(nn.Module):
 #------------------------------------------------------------------------------
 #------------------------------------------------------------------------------
 
-class DCGANFaceEncoder(nn.Module):
+class DCGAN_01FaceEncoder(nn.Module):
     """Parametrizes q(z|x).
     This is the standard DCGAN architecture.
     @param n_latents: integer
                       number of latent variable dimensions.
     """
     def __init__(self, z_dim, num_filters=16):
-        super(DCGANFaceEncoder, self).__init__()
+        super(DCGAN_01FaceEncoder, self).__init__()
         self.num_filters = num_filters
         self.features = nn.Sequential(
             nn.Conv2d(3, num_filters, 4, 2, 1, bias=False),
@@ -150,14 +150,14 @@ class DCGANFaceEncoder(nn.Module):
         return z_loc, z_scale
 
 
-class DCGANFaceDecoder(nn.Module):
+class DCGAN_01FaceDecoder(nn.Module):
     """Parametrizes p(x|z). 
     This is the standard DCGAN architecture.
     @param n_latents: integer
                       number of latent variable dimensions.
     """
     def __init__(self, z_dim, num_filters=16):
-        super(DCGANFaceDecoder, self).__init__()
+        super(DCGAN_01FaceDecoder, self).__init__()
         self.num_filters = num_filters
         self.upsample = nn.Sequential(
             nn.Linear(z_dim, num_filters * 8 * 5 * 5),
@@ -180,6 +180,74 @@ class DCGANFaceDecoder(nn.Module):
         z = z.view(-1, self.num_filters * 8, 5, 5)
         z = self.hallucinate(z)
         return z  # NOTE: no sigmoid here. See train.py
+
+#------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
+
+class DCGAN_02FaceEncoder(nn.Module):
+    """Parametrizes q(z|x).
+    This is the standard DCGAN architecture.
+    @param n_latents: integer
+                      number of latent variable dimensions.
+    """
+    def __init__(self, z_dim, num_filters=16):
+        super(DCGAN_02FaceEncoder, self).__init__()
+        self.num_filters = num_filters
+        self.features = nn.Sequential(
+            nn.Conv2d(3, num_filters, 4, 2, 1,bias=False),
+            Swish(),
+            nn.Conv2d(num_filters, num_filters*2, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(num_filters*2),
+            Swish(),
+            nn.Conv2d(num_filters*2, num_filters*4, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(num_filters*4),
+            Swish())
+        
+        self.z_loc_layer = nn.Sequential(
+            nn.Linear(num_filters * 4 * 8 * 8, 512),
+            Swish(),
+            nn.Dropout(p=0.2),
+            nn.Linear(512, z_dim))
+        self.z_scale_layer = nn.Sequential(
+            nn.Linear(num_filters * 4 * 8 * 8, 512),
+            Swish(),
+            nn.Dropout(p=0.2),
+            nn.Linear(512, z_dim))
+
+    def forward(self, image):
+        hidden = self.features(image)
+        hidden = hidden.view(-1, self.num_filters * 4 * 8 * 8)
+        z_loc = self.z_loc_layer(hidden)
+        z_scale = torch.exp(self.z_scale_layer(hidden))
+        return z_loc, z_scale
+
+
+class DCGAN_02FaceDecoder(nn.Module):
+    """Parametrizes p(x|z). 
+    This is the standard DCGAN architecture.
+    @param n_latents: integer
+                      number of latent variable dimensions.
+    """
+    def __init__(self, z_dim, num_filters=16):
+        super(DCGAN_02FaceDecoder, self).__init__()
+        self.num_filters = num_filters
+        self.upsample = nn.Sequential(
+            nn.Linear(z_dim, num_filters * 4 * 8 * 8),
+            Swish())
+        self.hallucinate = nn.Sequential(
+            nn.ConvTranspose2d(num_filters * 4,  num_filters * 2, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(num_filters * 2),
+            Swish(),
+            nn.ConvTranspose2d(num_filters * 2, num_filters, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(num_filters),
+            Swish(),
+            nn.ConvTranspose2d(num_filters, 3, 4, 2, 1, bias=True))
+
+    def forward(self, z):
+        z = self.upsample(z)
+        z = z.view(-1, self.num_filters * 4, 8, 8)
+        z = self.hallucinate(z)
+        return z
 
 #------------------------------------------------------------------------------
 #------------------------------------------------------------------------------

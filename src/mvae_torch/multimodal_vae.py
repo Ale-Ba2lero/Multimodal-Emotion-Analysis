@@ -94,16 +94,21 @@ class MultimodalVariationalAutoencoder(torch.nn.Module):
         log_var = torch.log(torch.square(z_scale))
         kld_loss = torch.mean(-0.5 * torch.sum(1 + log_var - z_loc ** 2 - log_var.exp(), dim=1), dim=0)
         #total_loss = reconstruction_loss + beta * kld_loss
+        
         true_samples = Variable(
                 torch.randn_like(latent_sample),
                 requires_grad=False
             )
         # Calculate the KLD loss
         mmd_loss = self.compute_mmd(true_samples, latent_sample)
-                    
+        
         # Calculate the Total Loss
-        total_loss = reconstruction_loss + beta * kld_loss + mmd_loss
-
+        #total_loss = 5.0 * reconstruction_loss + beta * kld_loss + mmd_loss
+        alpha: float = 0.5
+        lbd: float = 3e-2
+        bias_corr = 32 * (32 - 1)
+            
+        total_loss =  reconstruction_loss + beta * kld_loss + mmd_loss
         return {
             "total_loss": total_loss,
             "reconstruction_loss": reconstruction_loss,
@@ -132,7 +137,7 @@ class MultimodalVariationalAutoencoder(torch.nn.Module):
         #   the Gaussians together.
         batch_size: int = self._extract_batch_size_from_data(
             faces=faces,
-            emotions=emotions
+            emotions=None
         )
 
         z_loc, z_scale = (
@@ -143,7 +148,7 @@ class MultimodalVariationalAutoencoder(torch.nn.Module):
         if self.use_cuda:
             z_loc = z_loc.cuda()
             z_scale = z_scale.cuda()
-
+            
         if faces is not None:
             face_z_loc, face_z_scale = self._face_encoder.forward(faces)
             z_loc = torch.cat((z_loc, face_z_loc.unsqueeze(0)), dim=0)
@@ -159,17 +164,6 @@ class MultimodalVariationalAutoencoder(torch.nn.Module):
 
         return z_loc_expert, z_scale_expert, z_loc, z_scale
 
-    def sample_latent(self, z_loc: torch.Tensor, z_scale: torch.Tensor) -> torch.Tensor:
-        """
-        TODO: this is duplicate... extract
-        Reparameterization trick to sample from N(mu, var) from
-        N(0,1).
-        """
-        epsilon: torch.Tensor = torch.randn_like(z_loc)
-        latent_sample: torch.Tensor = z_loc + epsilon * z_scale
-        
-        #latent_sample: torch.Tensor = torch.normal(mean=z_loc, std=z_scale)
-        return latent_sample
 
     def generate(self, latent_sample: torch.Tensor) -> Tuple[torch.Tensor, ...]:
         face_reconstruction = self._face_decoder.forward(latent_sample)
@@ -184,20 +178,10 @@ class MultimodalVariationalAutoencoder(torch.nn.Module):
             emotions=emotions
         )
         
-        # Sample from the latent space 
-        '''if sample:
-            latent_sample: torch.Tensor = self.sample_latent(
-                z_loc=z_loc_expert,
-                z_scale=z_scale_expert
-            )
-        else:
-            latent_sample: torch.Tensor = z_loc_expert'''
-        
+        # Sample from the latent space         
         epsilon: torch.Tensor = torch.randn_like(z_loc_expert)
         latent_sample: torch.Tensor = z_loc_expert + epsilon * z_scale_expert
-        
-        #latent_sample: torch.Tensor = torch.normal(mean=z_loc_expert, std=z_scale_expert)
-        
+                
 
         # Reconstruct inputs based on that Gaussian sample
         face_reconstruction, emotions_reconstruction = self.generate(
@@ -205,3 +189,4 @@ class MultimodalVariationalAutoencoder(torch.nn.Module):
         )
 
         return face_reconstruction, emotions_reconstruction, z_loc_expert, z_scale_expert, latent_sample
+    

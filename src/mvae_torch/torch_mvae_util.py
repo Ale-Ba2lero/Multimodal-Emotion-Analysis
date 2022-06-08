@@ -151,6 +151,7 @@ class ProductOfExperts(Expert):
 
         return product_loc, product_scale
 
+    
 def display_recontructed_images(model, img_size=64, use_cuda=True, model_eval=True):
     if model_eval: model.eval()
     else: model.train()
@@ -177,6 +178,51 @@ def display_recontructed_images(model, img_size=64, use_cuda=True, model_eval=Tr
     
     plt.show()
     return rec_imgs
+
+
+def test_batch(model, dataset_loader, num_images=4, img_size=64, model_eval=True, use_cuda=True):
+    
+    if model_eval:
+        model.eval()
+    else:
+        model.train()
+        
+    sample = next(iter(dataset_loader))
+    images = sample['image']
+    
+    if use_cuda:
+        images = images.cuda()
+        
+    batch_size = images.shape[0]
+        
+    input_array = numpy.zeros(shape=(img_size, 1, 3), dtype="uint8")
+    reconstructed_array = numpy.zeros(shape=(img_size, 1, 3), dtype="uint8")
+    
+    reconstructed_images, _, _, _, _ = model(faces=images, emotions=None)
+    
+    if num_images > batch_size: num_images=batch_size
+        
+    for idx in range(num_images):
+        input_image = images[idx]
+        
+        # storing the input image
+        input_image_display = numpy.array(input_image.cpu()*255., dtype='uint8').transpose((1, 2, 0))
+        input_array = numpy.concatenate((input_array, input_image_display), axis=1)
+        
+        # generating the reconstructed image and adding to array
+        input_image = input_image.view(1, 3, img_size, img_size)
+        
+        reconstructed_img = reconstructed_images[idx].cpu().view(3, img_size, img_size).detach().numpy()
+        reconstructed_img = numpy.array(reconstructed_img*255., dtype='uint8').transpose((1, 2, 0))
+        reconstructed_array = numpy.concatenate((reconstructed_array, reconstructed_img), axis=1)
+        
+    input_array = input_array[:,1:,:]
+    reconstructed_array = reconstructed_array[:,1:,:]
+    display_array = numpy.concatenate((input_array, reconstructed_array), axis=0)
+    plt.figure(figsize = (40,10))
+    plt.imshow(display_array)
+    return display_array
+
 
 def recon_and_classiffication_accuracy(model, dataset_loader, num_samples=100, model_eval = True):
     if model_eval:
