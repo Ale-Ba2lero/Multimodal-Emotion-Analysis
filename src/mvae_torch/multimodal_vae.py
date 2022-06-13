@@ -15,10 +15,11 @@ class MultimodalVariationalAutoencoder(torch.nn.Module):
             face_decoder: torch.nn.Module,
             emotion_encoder: torch.nn.Module,
             emotion_decoder: torch.nn.Module,
+            feature_fusion_net: torch.nn.Module,
             loss_weights: dict,
-            expert: Expert,
             latent_space_dim: int,
-            use_cuda: bool = False
+            expert: Expert = None,
+            use_cuda: bool = True
     ) -> None:
         super(MultimodalVariationalAutoencoder, self).__init__()
         self._logger = logging.getLogger(MultimodalVariationalAutoencoder.__name__)
@@ -27,10 +28,15 @@ class MultimodalVariationalAutoencoder(torch.nn.Module):
         self._face_decoder: torch.nn.Module = face_decoder
         self._emotion_encoder: torch.nn.Module = emotion_encoder
         self._emotion_decoder: torch.nn.Module = emotion_decoder
-
-        self._loss_weights: dict = loss_weights
+        self._feature_fusion_net: torch.nn.Module = feature_fusion_net
         self._expert: Expert = expert
+        self._loss_weights: dict = loss_weights
         self._latent_space_dim: int = latent_space_dim
+        
+        if expert is not None:
+            self._use_expert = True
+        else:
+            self._use_expert = False
 
         # Train on GPU
         self.use_cuda = use_cuda
@@ -99,16 +105,12 @@ class MultimodalVariationalAutoencoder(torch.nn.Module):
                 torch.randn_like(latent_sample),
                 requires_grad=False
             )
+        
         # Calculate the KLD loss
         mmd_loss = self.compute_mmd(true_samples, latent_sample)
         
         # Calculate the Total Loss
-        #total_loss = 5.0 * reconstruction_loss + beta * kld_loss + mmd_loss
-        alpha: float = 0.5
-        lbd: float = 3e-2
-        bias_corr = 32 * (32 - 1)
-            
-        total_loss =  reconstruction_loss + beta * kld_loss + mmd_loss
+        total_loss = reconstruction_loss + beta * kld_loss + mmd_loss
         return {
             "total_loss": total_loss,
             "reconstruction_loss": reconstruction_loss,
@@ -131,15 +133,42 @@ class MultimodalVariationalAutoencoder(torch.nn.Module):
 
     def infer_latent(self, faces: torch.Tensor, emotions: torch.Tensor) -> Tuple[torch.Tensor, ...]:
         # Use the encoders to get the parameters used to define q(z|x).
+        
+        batch_size: int = self._extract_batch_size_from_data(
+            faces=faces,
+            emotions=emotions
+        )
+            
+        if self._use_expert:
+            return self.apply_expert(faces, emotions, batch_size)
+        else:
+            return self.features_fusion(faces, emotions, batch_size)
+    
+    def features_fusion(self, faces: torch.Tensor, emotions: torch.Tensor, batch_size: int) -> Tuple[torch.Tensor, ...]:
+        # hardwired feature size
+        # moreover I am using the same size for both features, this may not be optimal
+        
+        if faces is not None:
+            face_features = self._face_encoder.forward(faces)
+        else:
+            face_features = torch.zeros(batch_size, self._latent_space_dim)
+            
+        if emotions is not None:
+            emotion_features = self._emotion_encoder.forward(emotions)
+        else:
+            emotion_features = torch.zeros(batch_size, self._latent_space_dim)
+            
+        if self.use_cuda:
+            face_features = face_features.cuda()
+            emotion_features = emotion_features.cuda()
+            
+        return self._feature_fusion_net(face_features, emotion_features)
+    
+    def apply_expert(self, faces: torch.Tensor, emotions: torch.Tensor, batch_size: int):
         # Initialize the prior expert.
         # We initialize an additional dimension, along which we concatenate all the different experts.
         #   self.experts() then combines the information from these different modalities by multiplying
         #   the Gaussians together.
-        batch_size: int = self._extract_batch_size_from_data(
-            faces=faces,
-            emotions=None
-        )
-
         z_loc, z_scale = (
             torch.zeros([1, batch_size, self._latent_space_dim]),
             torch.ones([1, batch_size, self._latent_space_dim])
@@ -148,7 +177,7 @@ class MultimodalVariationalAutoencoder(torch.nn.Module):
         if self.use_cuda:
             z_loc = z_loc.cuda()
             z_scale = z_scale.cuda()
-            
+        
         if faces is not None:
             face_z_loc, face_z_scale = self._face_encoder.forward(faces)
             z_loc = torch.cat((z_loc, face_z_loc.unsqueeze(0)), dim=0)
@@ -162,8 +191,8 @@ class MultimodalVariationalAutoencoder(torch.nn.Module):
         # Give the inferred parameters to the expert to arrive at a unique decision
         z_loc_expert, z_scale_expert = self._expert(z_loc, z_scale)
 
-        return z_loc_expert, z_scale_expert, z_loc, z_scale
-
+        return z_loc_expert, z_scale_expert
+    
 
     def generate(self, latent_sample: torch.Tensor) -> Tuple[torch.Tensor, ...]:
         face_reconstruction = self._face_decoder.forward(latent_sample)
@@ -173,20 +202,20 @@ class MultimodalVariationalAutoencoder(torch.nn.Module):
 
     def forward(self, faces=None, emotions=None) -> Tuple[torch.Tensor, ...]:
         # Infer the latent distribution parameters
-        z_loc_expert, z_scale_expert, _, _ = self.infer_latent(
+        z_loc, z_scale = self.infer_latent(
             faces=faces,
             emotions=emotions
         )
-        
-        # Sample from the latent space         
-        epsilon: torch.Tensor = torch.randn_like(z_loc_expert)
-        latent_sample: torch.Tensor = z_loc_expert + epsilon * z_scale_expert
                 
+        # Sample from the latent space         
+        epsilon: torch.Tensor = torch.randn_like(z_loc)
+        latent_sample: torch.Tensor = z_loc + epsilon * z_scale
+        
 
         # Reconstruct inputs based on that Gaussian sample
         face_reconstruction, emotions_reconstruction = self.generate(
             latent_sample=latent_sample
         )
 
-        return face_reconstruction, emotions_reconstruction, z_loc_expert, z_scale_expert, latent_sample
+        return face_reconstruction, emotions_reconstruction, z_loc, z_scale, latent_sample
     

@@ -152,7 +152,7 @@ class ProductOfExperts(Expert):
         return product_loc, product_scale
 
     
-def display_recontructed_images(model, img_size=64, use_cuda=True, model_eval=True):
+def emotions_to_images(model, img_size=64, use_cuda=True, model_eval=True):
     if model_eval: model.eval()
     else: model.train()
         
@@ -165,7 +165,6 @@ def display_recontructed_images(model, img_size=64, use_cuda=True, model_eval=Tr
     
     with torch.no_grad():
         reconstructed_images, _, _, _, _ = model(faces=None, emotions=labels)
-        _, reconstructed_emotions, _, _, _ = model(faces=reconstructed_images, emotions=None)
 
     for idx in range(len(labels)):        
         reconstructed_img = reconstructed_images[idx].cpu().view(3, img_size, img_size).detach().numpy()
@@ -180,7 +179,7 @@ def display_recontructed_images(model, img_size=64, use_cuda=True, model_eval=Tr
     return rec_imgs
 
 
-def test_batch(model, dataset_loader, num_images=4, img_size=64, model_eval=True, use_cuda=True):
+def images_to_images(model, dataset_loader, num_images=4, img_size=64, model_eval=True, use_cuda=True):
     
     if model_eval:
         model.eval()
@@ -264,6 +263,9 @@ def classiffication_accuracy(model, dataset_loader, model_eval = True):
     match = 0
     total = 0
     
+    emo_acc = torch.zeros((8,), dtype=torch.int32)
+    total_emo = torch.zeros((8,), dtype=torch.int32)
+    
     with torch.no_grad():
         for sample in tqdm.tqdm(iter(dataset_loader)):
             labels = sample['cat'].cuda()
@@ -274,10 +276,13 @@ def classiffication_accuracy(model, dataset_loader, model_eval = True):
 
             for idx in range(len(labels)):
                 total += 1
+                total_emo[labels[idx]] += 1
                 if labels[idx] == reconstructed_emotions[idx]:
                     match += 1
+                    emo_acc[labels[idx]] += 1
     
     acc = match / total
+    emo_acc = emo_acc / total_emo
     return acc
     
 
