@@ -13,12 +13,28 @@ class Swish(nn.Module):
     """https://arxiv.org/abs/1710.05941"""
     def forward(self, x):
         return x * torch.sigmoid(x)
-
+    
     
 def swish(x):
     return x * torch.sigmoid(x)
 
 
+class MixtureOfExpertsComparableComplexity(nn.Module):
+    """
+    The MoE could be extended by different weighting the modalities differently
+    """
+    def __init__(self):
+        super(MixtureOfExpertsComparableComplexity, self).__init__()
+
+    def forward(self, loc: torch.Tensor, scale: torch.Tensor):
+        num_modalities: int = loc.shape[0]
+
+        moe_loc: torch.Tensor = torch.sum(loc, dim=0) / num_modalities
+        moe_scale: torch.Tensor = torch.sum(scale, dim=0) / (num_modalities ** 2)
+
+        return moe_loc, moe_scale
+
+    
 class ProductOfExperts(nn.Module):
     def forward(self, loc, scale, eps=1e-8):
         scale = scale + eps # numerical constant for stability
@@ -26,49 +42,45 @@ class ProductOfExperts(nn.Module):
         product_loc = torch.sum(loc * T, dim=0) / torch.sum(T, dim=0)
         product_scale = 1. / torch.sum(T, dim=0)
         return product_loc, product_scale
-     
-        
+    
+    
 class ImageEncoder(nn.Module):
-    def __init__(self, z_dim=64, ch=64, scale=2):
+    def __init__(self, z_dim=50, ch=32):
         super(ImageEncoder, self).__init__()
-        self.ch = ch
-        self.z_dim = z_dim
-        self.features_output = self.ch * 8 * 2 * 2
-        
-        # input = 64 * 64
+        #torch.nn.Conv2d(in_channels, out_channels, kernel_size, stride=1, 
+        #                padding=0, dilation=1, groups=1, bias=True)
+        # H_out = floor( (H_in + 2*padding - dilation(kernel_size-1) -1) / stride    +1)
         self.features = nn.Sequential(
-            nn.Conv2d(3, ch, 3, 1, 1, bias=False), nn.BatchNorm2d(ch), nn.ReLU(),
-            nn.MaxPool2d(scale, scale), # 32
-            nn.Conv2d(ch, ch * 2, 3, 1, 1, bias=False), nn.BatchNorm2d(ch * 2), nn.ReLU(),
-            nn.MaxPool2d(scale, scale), # 16
-            nn.Conv2d(ch * 2, ch * 4, 3, 1, 1, bias=False), nn.BatchNorm2d(ch * 4), nn.ReLU(),
-            nn.MaxPool2d(scale, scale), # 8
-            nn.Conv2d(ch * 4, ch * 8, 3, 1, 1, bias=False), nn.BatchNorm2d(ch * 8), nn.ReLU(),
-            nn.MaxPool2d(scale, scale), # 4
-            nn.Conv2d(ch * 8, ch * 8, 3, 1, 1, bias=False), nn.BatchNorm2d(ch * 8), nn.ReLU(),
-            nn.MaxPool2d(scale, scale), # 2
-        )
-                           
+            nn.Conv2d(3, 32, 4, 2, 1, bias=False),
+            Swish(),
+            nn.Conv2d(32, 64, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(64),
+            Swish(),
+            nn.Conv2d(64, 128, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(128),
+            Swish(),
+            nn.Conv2d(128, 256, 4, 1, 0, bias=False),
+            nn.BatchNorm2d(256),
+            Swish())
+        # Here, we define two layers, one to give z_loc and one to give z_scale
         self.z_loc_layer = nn.Sequential(
-            nn.Linear(self.features_output, 256),
+            nn.Linear(256 * 5 * 5, 512), # it's 256 * 5 * 5 if input is 64x64.
             Swish(),
             nn.Dropout(p=0.1),
-            nn.Linear(256, z_dim))
-        
+            nn.Linear(512, z_dim))
         self.z_scale_layer = nn.Sequential(
-            nn.Linear(self.features_output, 256),
+            nn.Linear(256 * 5 * 5, 512), # it's 256 * 5 * 5 if input is 64x64.
             Swish(),
             nn.Dropout(p=0.1),
-            nn.Linear(256, z_dim))
-        
+            nn.Linear(512, z_dim))
+        self.z_dim = z_dim
 
     def forward(self, image):
         hidden = self.features(image)
-        hidden = hidden.view(-1, self.features_output)
+        hidden = hidden.view(-1, 256 * 5 * 5) # it's 256 * 5 * 5 if input is 64x64.
         z_loc = self.z_loc_layer(hidden)
-        z_scale = torch.exp(self.z_scale_layer(hidden))
+        z_scale = torch.exp(self.z_scale_layer(hidden)) #add exp so it's always positive
         return z_loc, z_scale
-    
     
 class ImageDecoder(nn.Module):
     def __init__(self, z_dim=64, ch=64, scale=2):
@@ -144,7 +156,7 @@ class MVAE(nn.Module):
         
         self.z_dim = z_dim
         self.img_size = img_size
-        self.experts = ProductOfExperts()
+        self.experts = MixtureOfExpertsComparableComplexity() #ProductOfExperts()
         self.image_encoder = ImageEncoder(z_dim, ch=ch_size)
         self.image_decoder = ImageDecoder(z_dim, ch=ch_size)
         self.emotion_encoder = EmotionEncoder(z_dim, emotion_dim)

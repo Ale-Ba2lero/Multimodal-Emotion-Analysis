@@ -5,7 +5,7 @@ from tqdm import tqdm
 
 
 def get_frames(files_paths, destination_folder=None):
-    IDX_FRAME = [1,15,30,45,60,75,100]
+    IDX_FRAME = [5,15,25,30,35,40,45,50,55,65,75,100]
 
     if destination_folder is None:
         parent_dir = os.getcwd()

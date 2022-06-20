@@ -117,6 +117,8 @@ class CenterCrop(object):
             image = sample['image']
             h, w = image.shape[:2]
             new_h, new_w = self.output_size
+            new_h = int(new_h / 1.5)
+            new_w = int(new_w / 1.5)
             top = (h - new_h) // 2
             left = (w - new_w) // 2
             image = image[top: top + new_h,left: left + new_w]

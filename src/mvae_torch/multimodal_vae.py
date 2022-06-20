@@ -110,13 +110,12 @@ class MultimodalVariationalAutoencoder(torch.nn.Module):
         mmd_loss = self.compute_mmd(true_samples, latent_sample)
         
         # Calculate the Total Loss
-        total_loss = reconstruction_loss + beta * kld_loss + mmd_loss
+        total_loss = reconstruction_loss + mmd_loss + beta * kld_loss
+        
         return {
-            "total_loss": total_loss,
-            "reconstruction_loss": reconstruction_loss,
-            "kld_loss": kld_loss,
-            "mmd_loss":mmd_loss,
-            "faces_reconstruction_loss": faces_reconstruction_loss,
+            "total_loss": total_loss, "reconstruction_loss": reconstruction_loss,
+            "kld_loss": kld_loss, "mmd_loss":mmd_loss,
+            "faces_reconstruction_loss": faces_reconstruction_loss, 
             "emotions_reconstruction_loss": emotions_reconstruction_loss
         }
         
@@ -151,12 +150,12 @@ class MultimodalVariationalAutoencoder(torch.nn.Module):
         if faces is not None:
             face_features = self._face_encoder.forward(faces)
         else:
-            face_features = torch.zeros(batch_size, self._latent_space_dim)
+            face_features = torch.zeros(batch_size, self._face_encoder.features_size)
             
         if emotions is not None:
             emotion_features = self._emotion_encoder.forward(emotions)
         else:
-            emotion_features = torch.zeros(batch_size, self._latent_space_dim)
+            emotion_features = torch.zeros(batch_size, self._emotion_encoder.features_size)
             
         if self.use_cuda:
             face_features = face_features.cuda()

@@ -14,10 +14,13 @@ import nn_modules as nnm
 from torch_mvae_util import Expert, ProductOfExperts, MixtureOfExpertsComparableComplexity, AnnealingBetaGeneratorFactory
 from config_args import ConfigTrainArgs
 
+import torch_mvae_util as U
 
 def build_model(
     cat_dim: int,
     latent_space_dim: int,
+    image_feature_size: int,
+    emotion_feature_size: int,
     hidden_dim: int,
     num_filters: int,
     loss_weights: dict,
@@ -25,36 +28,46 @@ def build_model(
     use_cuda: bool
 ) -> torch.nn.Module:
     
-    # Expert mode modules
-    '''
-    face_encoder: torch.nn.Module = nnm.DCGANFaceEncoder(
-        z_dim=latent_space_dim,
-        num_filters=num_filters
-    )
-    
-    emocat_encoder: torch.nn.Module = nnm.EmotionEncoder(
-        input_dim=cat_dim,
-        hidden_dim=hidden_dim,
-        z_dim=latent_space_dim
-    )
-    '''
-    
-    # Features Fusion mode modules
-    face_encoder: torch.nn.Module = nnm.FaceFeatureExtraction(
-        features_size=latent_space_dim, 
-        num_filters=num_filters
-    )
+    if expert_type != 'fusion':
+        # Create the expert
+        if expert_type == "poe":
+            # Should the epsilon be parameterized?
+            expert: Expert = ProductOfExperts(num_const=1e-8)
+        elif expert_type == "moe":
+            expert: Expert = MixtureOfExpertsComparableComplexity()
+        else:
+            raise ValueError(f"Unknown expert type '{expert_type}'")
         
-    emotion_encoder: torch.nn.Module = nnm.EmotionFeatureExtraction(
-        input_dim=cat_dim,
-        features_size=latent_space_dim
-    )
-        
-    feature_fusion_net: torch.nn.Module = nnm.FeaturesFusion(
-        z_dim=latent_space_dim, 
-        feature_size=latent_space_dim, 
-        hidden_dim=hidden_dim
-    )
+        face_encoder: torch.nn.Module = nnm.DCGANFaceEncoder(
+            z_dim=latent_space_dim,
+            num_filters=num_filters
+        )
+
+        emotion_encoder: torch.nn.Module = nnm.EmotionEncoder(
+            input_dim=cat_dim,
+            hidden_dim=hidden_dim,
+            z_dim=latent_space_dim
+        )
+            
+        feature_fusion_net = None
+    else:
+        expert: Expert = None
+        # Features Fusion mode modules
+        face_encoder: torch.nn.Module = nnm.FaceFeatureExtraction(
+            num_filters=num_filters,
+            features_size=image_feature_size 
+        )
+
+        emotion_encoder: torch.nn.Module = nnm.EmotionFeatureExtraction(
+            input_dim=cat_dim,
+            features_size=emotion_feature_size
+        )
+
+        feature_fusion_net: torch.nn.Module = nnm.FeaturesFusion(
+            z_dim=latent_space_dim, 
+            feature_size=image_feature_size + emotion_feature_size, 
+            hidden_dim=hidden_dim
+        )
             
     face_decoder: torch.nn.Module = nnm.DCGANFaceDecoder(
         z_dim=latent_space_dim,
@@ -66,17 +79,6 @@ def build_model(
         hidden_dim=hidden_dim,
         z_dim=latent_space_dim
     )
-
-    # Create the expert
-    if expert_type == "poe":
-        # Should the epsilon be parameterized?
-        expert: Expert = ProductOfExperts(num_const=1e-8)
-    elif expert_type == "moe":
-        expert: Expert = MixtureOfExpertsComparableComplexity()
-    elif expert_type == "fusion":
-        expert: Expert = None
-    else:
-        raise ValueError(f"Unknown expert type '{expert_type}'")
 
     # Build the model
     mvae: torch.nn.Module = MultimodalVariationalAutoencoder(
@@ -100,9 +102,20 @@ def eval_model_training(
         beta,
         faces,
         emotions,
+        ignore_faces=False,
+        ignore_emotions=False
 ) -> dict:
     # Zero the parameter gradients
     optimizer.zero_grad()
+    
+    if ignore_faces:
+        input_faces=None
+    else:
+        input_faces=faces
+    if ignore_emotions:
+        input_emotions=None
+    else:
+        input_emotions=emotions
 
     (
         face_reconstruction,
@@ -111,9 +124,9 @@ def eval_model_training(
         z_scale_expert,
         latent_sample
     ) = model(
-        faces=faces, emotions=emotions
+        faces=input_faces, emotions=input_emotions
     )
-
+    
     loss = model.loss_function(
         faces=faces,
         emotions=emotions,
@@ -148,39 +161,33 @@ def train(
         optim_betas: Tuple[float, float],
         num_epochs: int,
         batch_size: int,
-        checkpoint_every: int,
-        checkpoint_path: str,
-        save_model: bool,
         seed: int,
         use_cuda: bool,
         cfg: ConfigTrainArgs,
-        print_loss: bool = False
+        checkpoint_every: int,
+        resume_train: bool = False
 ) -> None:
-    checkpoint_every=None
-    save_model=False
     
     torch.manual_seed(seed=seed)
 
     # Setup the optimizer
     adam_args = {"lr": learning_rate, "betas": optim_betas}
     optimizer = torch.optim.Adam(params=mvae_model.parameters(), **adam_args)
-
-    annealing_beta_gen_factory = AnnealingBetaGeneratorFactory(
-        annealing_type=cfg.annealing_type,
-        training_config=cfg
-    )
-    annealing_beta_generator: Generator[float, None, None] = annealing_beta_gen_factory.get_annealing_beta_generator(
-        num_iterations=num_epochs
-    )
-
-    training_losses:dict = {'multimodal_loss': StatLoss(), 'face_loss': StatLoss(), 'emotion_loss': StatLoss()}
+    
+    if resume_train:
+        loaded_data = torch.load(cfg.checkpoint_save_path)
+        mvae_model.load_state_dict(loaded_data['model_params'])
+        training_losses = loaded_data['training_loss']  
+    else:
+        training_losses: dict = {'multimodal_loss': StatLoss(), 'face_loss': StatLoss(), 'emotion_loss': StatLoss()}
+            
     # Training loop
     for epoch_num in tqdm(range(num_epochs)):
         # Initialize loss accumulator and the progress bar
         multimodal_loss = StatLoss()
         face_loss = StatLoss()
         emotion_loss = StatLoss()
-        annealing_beta = next(annealing_beta_generator)
+        annealing_beta = cfg.static_annealing_beta
 
         # Do a training epoch over each mini-batch returned
         #   by the data loader
@@ -192,7 +199,6 @@ def train(
                     faces = faces.cuda()
                 if emotions is not None:
                     emotions = emotions.cuda()
-            
             # multimodal loss
             m_losses: dict = eval_model_training(
                 model=mvae_model,
@@ -208,8 +214,16 @@ def train(
             multimodal_loss.faces_reconstruction_loss.append(float(m_losses["faces_reconstruction_loss"].cpu().detach().numpy()))
             multimodal_loss.emotions_reconstruction_loss.append(float(m_losses["emotions_reconstruction_loss"].cpu().detach().numpy()))
             
-            
             # face only loss
+            '''f_losses: dict = eval_model_training(
+                model=mvae_model,
+                optimizer=optimizer,
+                beta=annealing_beta,
+                faces=faces,
+                emotions=emotions,
+                ignore_emotions=True
+            )'''
+                
             f_losses: dict = eval_model_training(
                 model=mvae_model,
                 optimizer=optimizer,
@@ -217,6 +231,7 @@ def train(
                 faces=faces,
                 emotions=None
             )
+            
             face_loss.total_loss.append(float(f_losses["total_loss"].cpu().detach().numpy()))
             face_loss.reconstruction_loss.append(float(f_losses["reconstruction_loss"].cpu().detach().numpy()))
             face_loss.kld_loss.append(float(f_losses["kld_loss"].cpu().detach().numpy()))
@@ -226,6 +241,15 @@ def train(
             
             
             # emotion only loss
+            '''e_losses: dict = eval_model_training(
+                model=mvae_model,
+                optimizer=optimizer,
+                beta=annealing_beta,
+                faces=faces,
+                emotions=emotions,
+                ignore_faces=True
+            )'''
+            
             e_losses: dict = eval_model_training(
                 model=mvae_model,
                 optimizer=optimizer,
@@ -261,5 +285,16 @@ def train(
         training_losses['emotion_loss'].mmd_loss.append(numpy.nanmean(emotion_loss.mmd_loss))
         training_losses['emotion_loss'].faces_reconstruction_loss.append(numpy.nanmean(emotion_loss.faces_reconstruction_loss))
         training_losses['emotion_loss'].emotions_reconstruction_loss.append(numpy.nanmean(emotion_loss.emotions_reconstruction_loss))
+
+        
+        if checkpoint_every is not None:
+            if (epoch_num + 1) % checkpoint_every == 0:
+                checkpoint_save_path: str = cfg.checkpoint_save_path
+                torch.save(mvae_model.state_dict(), checkpoint_save_path)
+                torch.save({#'rec_image' : rec_image,
+                    'training_loss' : training_losses,
+                    'train_args': cfg,
+                    'model_params' : mvae_model.state_dict()
+                }, cfg.checkpoint_save_path)
                 
     return training_losses

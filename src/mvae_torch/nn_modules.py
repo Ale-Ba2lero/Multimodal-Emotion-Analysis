@@ -13,6 +13,7 @@ class FaceFeatureExtraction(nn.Module):
     def __init__(self, features_size=64, num_filters=64):
         super(FaceFeatureExtraction, self).__init__()
         self.num_filters = num_filters
+        self.features_size = features_size
         
         self.cnn = nn.Sequential(
             nn.Conv2d(3, num_filters, 4, 2, 1, bias=False),
@@ -44,6 +45,7 @@ class EmotionFeatureExtraction(nn.Module):
         super(EmotionFeatureExtraction, self).__init__()
         self.input_dim = input_dim
         self.net = nn.Linear(input_dim, 128)
+        self.features_size=features_size
         
         self.features = nn.Sequential(
             nn.Linear(128, 128),
@@ -59,7 +61,7 @@ class EmotionFeatureExtraction(nn.Module):
 class FeaturesFusion(nn.Module):
     def __init__(self, z_dim=64, feature_size=64, hidden_dim=128):
         super(FeaturesFusion, self).__init__()
-        self.fc1 = nn.Linear(feature_size * 2, hidden_dim)
+        self.fc1 = nn.Linear(feature_size, hidden_dim)
         self.fc2 = nn.Linear(hidden_dim, hidden_dim)
         self.fc_means = nn.Linear(hidden_dim, z_dim)
         self.fc_logvar = nn.Linear(hidden_dim, z_dim)
@@ -227,7 +229,7 @@ class EmotionEncoder(nn.Module):
         self.input_dim = input_dim
         self.net = nn.Linear(input_dim, hidden_dim)
         
-        self.z_loc_layer = nn.SequenWtial(
+        self.z_loc_layer = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU(),nn.Dropout(p=0.2),
             nn.Linear(hidden_dim, z_dim))
