@@ -65,11 +65,12 @@ class FeaturesFusion(nn.Module):
         self.fc2 = nn.Linear(hidden_dim, hidden_dim)
         self.fc_means = nn.Linear(hidden_dim, z_dim)
         self.fc_logvar = nn.Linear(hidden_dim, z_dim)
+        self.relu = nn.ReLU()
 
     def forward(self, face_features, emotion_features):
         features = torch.cat((face_features, emotion_features), 1)
-        hidden = self.fc1(features)
-        hidden = self.fc2(hidden)
+        hidden = self.relu(self.fc1(features))
+        hidden = self.relu(self.fc2(hidden))
         z_loc = self.fc_means(hidden)
         z_scale = self.fc_logvar(hidden)
         return z_loc, z_scale

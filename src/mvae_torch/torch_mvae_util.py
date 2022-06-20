@@ -152,9 +152,8 @@ class ProductOfExperts(Expert):
         return product_loc, product_scale
 
     
-def emotions_to_images(model, img_size=64, use_cuda=True, model_eval=True):
-    if model_eval: model.eval()
-    else: model.train()
+def emotions_to_images(model, img_size=64, use_cuda=True):
+    model.eval()
         
     fig, ax = plt.subplots(nrows=2, ncols=4,figsize=[15, 8])
     labels = torch.tensor(list(Rd.emocat.keys()))
@@ -223,17 +222,12 @@ def images_to_images(model, dataset_loader, num_images=4, img_size=64, model_eva
     return display_array
 
 
-def recon_and_classiffication_accuracy(model, dataset_loader, num_samples=100, model_eval = True):
-    if model_eval:
-        model.eval()
-    else:
-        model.train()
+def recon_and_classiffication_accuracy(model, num_samples=100):
+
+    model.eval()
     
-    match = 0
-    total = 0
-    
-    emo_acc = torch.zeros((8,), dtype=torch.int32)
-    total_emo = torch.zeros((8,), dtype=torch.int32)
+    y_true = []
+    y_pred = []
     
     with torch.no_grad():
         for sample in tqdm.tqdm(range(num_samples)):
@@ -241,30 +235,21 @@ def recon_and_classiffication_accuracy(model, dataset_loader, num_samples=100, m
             reconstructed_image, _, _, _, _ = model(faces=None, emotions=random_labels)
             _, reconstructed_emotions, _, _, _ = model(faces=reconstructed_image, emotions=None)
             reconstructed_emotions = torch.argmax(reconstructed_emotions, 1)
+            
+            y_true += random_labels.cpu()
+            y_pred += reconstructed_emotions.cpu()
 
-            for idx in range(len(random_labels)):
-                total += 1
-                total_emo[random_labels[idx]] += 1
-                if random_labels[idx] == reconstructed_emotions[idx]:
-                    match += 1
-                    emo_acc[random_labels[idx]] += 1
-    
-    acc = match / total
-    emo_acc = emo_acc / total_emo
-    return acc, emo_acc
+    return y_true, y_pred
 
 
-def classiffication_accuracy(model, dataset_loader, model_eval = True):
-    if model_eval:
-        model.eval()
-    else:
-        model.train()
-        
-    match = 0
-    total = 0
+def classiffication_accuracy(model, dataset_loader):
+    model.eval()
     
     emo_acc = torch.zeros((8,), dtype=torch.int32)
     total_emo = torch.zeros((8,), dtype=torch.int32)
+    
+    y_true = []
+    y_pred = []
     
     with torch.no_grad():
         for sample in tqdm.tqdm(iter(dataset_loader)):
@@ -273,17 +258,11 @@ def classiffication_accuracy(model, dataset_loader, model_eval = True):
 
             _, reconstructed_emotions, _, _, _ = model(faces=image, emotions=None)
             reconstructed_emotions = torch.argmax(reconstructed_emotions, 1)
+            
+            y_true += labels.cpu()
+            y_pred += reconstructed_emotions.cpu()
 
-            for idx in range(len(labels)):
-                total += 1
-                total_emo[labels[idx]] += 1
-                if labels[idx] == reconstructed_emotions[idx]:
-                    match += 1
-                    emo_acc[labels[idx]] += 1
-    
-    acc = match / total
-    emo_acc = emo_acc / total_emo
-    return acc
+    return y_true, y_pred
     
 
 def print_losses(training_losses, title=None, skipframe=0):
