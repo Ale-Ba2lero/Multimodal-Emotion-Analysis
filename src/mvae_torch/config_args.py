@@ -2,10 +2,10 @@ class ConfigModelArgs:
     cat_dim= 8
     img_size= 64
     z_dim= 50
-    num_filters= 128 # <- 64
+    num_filters= 32
     hidden_dim= 256
-    loss_weights = {'face': 1.0,'emotion': 1e4}
-    expert_type= "fusion" # moe, poe, fusion
+    loss_weights = {'face': 1.0,'emotion': 1e6}
+    expert_type= "poe" # moe, poe, fusion
     dataset_path= '/home/studenti/ballerini/datasets/RAVDESS_frames_dsl'
     
     image_feature_size = 64
