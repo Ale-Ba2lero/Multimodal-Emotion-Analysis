@@ -18,17 +18,45 @@ import torch_mvae_util as U
 
 def build_model(
     cat_dim: int,
+    au_dim: int,
     latent_space_dim: int,
-    image_feature_size: int,
-    emotion_feature_size: int,
     hidden_dim: int,
     num_filters: int,
-    loss_weights: dict,
+    modes: dict,
     expert_type: str,
     use_cuda: bool
 ) -> torch.nn.Module:
     
-    if expert_type != 'fusion':
+    if expert_type == 'fusion':
+        expert: Expert = None
+        # Features Fusion mode modules
+        if modes['au'] is not None:
+            au_encoder: torch.nn.Module = nnm.AUEncoder(
+                input_dim=au_dim,
+                features_size=modes['au'].feature_size
+            )
+        else: au_encoder: torch.nn.Module = None
+        
+        if modes['face'] is not None:
+            face_encoder: torch.nn.Module = nnm.FaceFeatureExtraction(
+                num_filters=num_filters,
+                features_size=modes['face'].feature_size  
+            )       
+        else: face_encoder: torch.nn.Module = None
+
+        if modes['emotion'] is not None:
+            emotion_encoder: torch.nn.Module = nnm.EmotionFeatureExtraction(
+                input_dim=cat_dim,
+                features_size=modes['emotions'].feature_size  
+            )
+        else: emotion_encoder: torch.nn.Module = None
+
+        feature_fusion_net: torch.nn.Module = nnm.FeaturesFusion(
+            z_dim=latent_space_dim, 
+            feature_size=image_feature_size + emotion_feature_size, 
+            hidden_dim=hidden_dim
+        )
+    else:
         # Create the expert
         if expert_type == "poe":
             # Should the epsilon be parameterized?
@@ -38,56 +66,64 @@ def build_model(
         else:
             raise ValueError(f"Unknown expert type '{expert_type}'")
         
-        face_encoder: torch.nn.Module = nnm.DCGANFaceEncoder(
+        if modes['au'] is not None:
+            au_encoder: torch.nn.Module = nnm.AUEncoder(
+                input_dim=au_dim,
+                z_dim=latent_space_dim
+            )
+        else: au_encoder: torch.nn.Module = None
+        
+        if modes['face'] is not None:
+            face_encoder: torch.nn.Module = nnm.DCGANFaceEncoder(
+                z_dim=latent_space_dim,
+                num_filters=num_filters
+            )
+        else: face_encoder: torch.nn.Module = None
+                
+        if modes['emotion'] is not None:
+            emotion_encoder: torch.nn.Module = nnm.EmotionEncoder(
+                input_dim=cat_dim,
+                hidden_dim=hidden_dim,
+                z_dim=latent_space_dim
+            )
+        else: emotion_encoder: torch.nn.Module = None
+            
+        feature_fusion_net = None
+            
+    if modes['au'] is not None:
+        au_decoder: torch.nn.Module = nnm.AUDecoder(
+            output_dim=cat_dim,
+            z_dim=latent_space_dim,
+            hidden_dim=hidden_dim
+        )
+    else: face_decoder: torch.nn.Module = None
+        
+    if modes['face'] is not None:
+        face_decoder: torch.nn.Module = nnm.DCGANFaceDecoder(
             z_dim=latent_space_dim,
             num_filters=num_filters
         )
-
-        emotion_encoder: torch.nn.Module = nnm.EmotionEncoder(
-            input_dim=cat_dim,
+    else: face_decoder: torch.nn.Module = None
+        
+    if modes['emotion'] is not None:
+        emotion_decoder: torch.nn.Module = nnm.EmotionDecoder(
+            output_dim=cat_dim,
             hidden_dim=hidden_dim,
             z_dim=latent_space_dim
         )
-            
-        feature_fusion_net = None
-    else:
-        expert: Expert = None
-        # Features Fusion mode modules
-        face_encoder: torch.nn.Module = nnm.FaceFeatureExtraction(
-            num_filters=num_filters,
-            features_size=image_feature_size 
-        )
+    else: emotion_decoder: torch.nn.Module = None
 
-        emotion_encoder: torch.nn.Module = nnm.EmotionFeatureExtraction(
-            input_dim=cat_dim,
-            features_size=emotion_feature_size
-        )
-
-        feature_fusion_net: torch.nn.Module = nnm.FeaturesFusion(
-            z_dim=latent_space_dim, 
-            feature_size=image_feature_size + emotion_feature_size, 
-            hidden_dim=hidden_dim
-        )
-            
-    face_decoder: torch.nn.Module = nnm.DCGANFaceDecoder(
-        z_dim=latent_space_dim,
-        num_filters=num_filters
-    )
-    
-    emotion_decoder: torch.nn.Module = nnm.EmotionDecoder(
-        output_dim=cat_dim,
-        hidden_dim=hidden_dim,
-        z_dim=latent_space_dim
-    )
 
     # Build the model
     mvae: torch.nn.Module = MultimodalVariationalAutoencoder(
+        au_encoder=au_encoder,
+        au_decoder=au_decoder,
         face_encoder=face_encoder,
         face_decoder=face_decoder,
         emotion_encoder=emotion_encoder,
         emotion_decoder=emotion_decoder,
         feature_fusion_net=feature_fusion_net,
-        loss_weights=loss_weights,
+        modes=modes,
         expert=expert,
         latent_space_dim=latent_space_dim,
         use_cuda=use_cuda
@@ -100,36 +136,31 @@ def eval_model_training(
         model,
         optimizer,
         beta,
-        faces,
-        emotions,
-        ignore_faces=False,
-        ignore_emotions=False
+        au=None,
+        faces=None,
+        emotions=None
 ) -> dict:
     # Zero the parameter gradients
     optimizer.zero_grad()
-    
-    if ignore_faces:
-        input_faces=None
-    else:
-        input_faces=faces
-    if ignore_emotions:
-        input_emotions=None
-    else:
-        input_emotions=emotions
 
     (
+        au_reconstruction,
         face_reconstruction,
         emotion_reconstruction,
         z_loc_expert,
         z_scale_expert,
         latent_sample
     ) = model(
-        faces=input_faces, emotions=input_emotions
+        au=au,
+        faces=faces, 
+        emotions=emotions
     )
     
     loss = model.loss_function(
+        au=au,
         faces=faces,
         emotions=emotions,
+        au_reconstruction=au_reconstruction,
         faces_reconstruction=face_reconstruction,
         emotions_reconstruction=emotion_reconstruction,
         z_loc=z_loc_expert,
@@ -150,10 +181,12 @@ class StatLoss:
         self.reconstruction_loss = []
         self.kld_loss = []
         self.mmd_loss = []
+        self.au_reconstruction = []
         self.faces_reconstruction_loss = []
         self.emotions_reconstruction_loss = []
         self.latent_sample = []
 
+        
 def train(
         mvae_model: torch.nn.Module,
         dataset_loader: DataLoader,
@@ -179,12 +212,13 @@ def train(
         mvae_model.load_state_dict(loaded_data['model_params'])
         training_losses = loaded_data['training_loss']  
     else:
-        training_losses: dict = {'multimodal_loss': StatLoss(), 'face_loss': StatLoss(), 'emotion_loss': StatLoss()}
+        training_losses: dict = {'multimodal_loss': StatLoss(), 'au_loss': StatLoss(), 'face_loss': StatLoss(), 'emotion_loss': StatLoss()}
             
     # Training loop
     for epoch_num in tqdm(range(num_epochs)):
         # Initialize loss accumulator and the progress bar
         multimodal_loss = StatLoss()
+        au_loss = StatLoss()
         face_loss = StatLoss()
         emotion_loss = StatLoss()
         annealing_beta = cfg.static_annealing_beta
@@ -192,11 +226,14 @@ def train(
         # Do a training epoch over each mini-batch returned
         #   by the data loader
         for sample in dataset_loader:
-            faces, emotions = sample['image'], sample['cat']
+            au = sample[:,:-1]
+            emotions = sample[:,-1].to(int)
+            #faces, emotions = sample['image'], sample['cat']
+            
             # If on GPU put the mini-batch into CUDA memory
             if use_cuda:
-                if faces is not None:
-                    faces = faces.cuda()
+                if au is not None:
+                    au = au.cuda()
                 if emotions is not None:
                     emotions = emotions.cuda()
             # multimodal loss
@@ -204,26 +241,38 @@ def train(
                 model=mvae_model,
                 optimizer=optimizer,
                 beta=annealing_beta,
-                faces=faces,
+                au=au,
+                faces=None,
                 emotions=emotions
             )
             multimodal_loss.total_loss.append(float(m_losses["total_loss"].cpu().detach().numpy()))
             multimodal_loss.reconstruction_loss.append(float(m_losses["reconstruction_loss"].cpu().detach().numpy()))
             multimodal_loss.kld_loss.append(float(m_losses["kld_loss"].cpu().detach().numpy()))
             multimodal_loss.mmd_loss.append(float(m_losses["mmd_loss"].cpu().detach().numpy()))
+            multimodal_loss.au_reconstruction_loss.append(float(m_losses["au_reconstruction_loss"].cpu().detach().numpy()))
             multimodal_loss.faces_reconstruction_loss.append(float(m_losses["faces_reconstruction_loss"].cpu().detach().numpy()))
             multimodal_loss.emotions_reconstruction_loss.append(float(m_losses["emotions_reconstruction_loss"].cpu().detach().numpy()))
             
-            # face only loss
-            '''f_losses: dict = eval_model_training(
+            # face only loss                
+            a_losses: dict = eval_model_training(
                 model=mvae_model,
                 optimizer=optimizer,
                 beta=annealing_beta,
-                faces=faces,
-                emotions=emotions,
-                ignore_emotions=True
-            )'''
-                
+                au=au,
+                faces=None,
+                emotions=None
+            )
+            
+            au_loss.total_loss.append(float(a_losses["total_loss"].cpu().detach().numpy()))
+            au_loss.reconstruction_loss.append(float(a_losses["reconstruction_loss"].cpu().detach().numpy()))
+            au_loss.kld_loss.append(float(a_losses["kld_loss"].cpu().detach().numpy()))
+            au_loss.mmd_loss.append(float(a_losses["mmd_loss"].cpu().detach().numpy()))
+            au_loss.au_reconstruction_loss.append(float(a_losses["au_reconstruction_loss"].cpu().detach().numpy()))
+            au_loss.faces_reconstruction_loss.append(float(a_losses["faces_reconstruction_loss"].cpu().detach().numpy()))
+            au_loss.emotions_reconstruction_loss.append(float(a_losses["emotions_reconstruction_loss"].cpu().detach().numpy()))
+            
+            '''
+            # face only loss                
             f_losses: dict = eval_model_training(
                 model=mvae_model,
                 optimizer=optimizer,
@@ -236,24 +285,17 @@ def train(
             face_loss.reconstruction_loss.append(float(f_losses["reconstruction_loss"].cpu().detach().numpy()))
             face_loss.kld_loss.append(float(f_losses["kld_loss"].cpu().detach().numpy()))
             face_loss.mmd_loss.append(float(f_losses["mmd_loss"].cpu().detach().numpy()))
+            face_loss.au_reconstruction_loss.append(float(f_losses["au_reconstruction_loss"].cpu().detach().numpy()))
             face_loss.faces_reconstruction_loss.append(float(f_losses["faces_reconstruction_loss"].cpu().detach().numpy()))
             face_loss.emotions_reconstruction_loss.append(float(f_losses["emotions_reconstruction_loss"].cpu().detach().numpy()))
-            
+            '''
             
             # emotion only loss
-            '''e_losses: dict = eval_model_training(
-                model=mvae_model,
-                optimizer=optimizer,
-                beta=annealing_beta,
-                faces=faces,
-                emotions=emotions,
-                ignore_faces=True
-            )'''
-            
             e_losses: dict = eval_model_training(
                 model=mvae_model,
                 optimizer=optimizer,
                 beta=annealing_beta,
+                au=None,
                 faces=None,
                 emotions=emotions
             )
@@ -261,29 +303,38 @@ def train(
             emotion_loss.reconstruction_loss.append(float(e_losses["reconstruction_loss"].cpu().detach().numpy()))
             emotion_loss.kld_loss.append(float(e_losses["kld_loss"].cpu().detach().numpy()))
             emotion_loss.mmd_loss.append(float(e_losses["mmd_loss"].cpu().detach().numpy()))
+            emotion_loss.au_reconstruction_loss.append(float(e_losses["au_reconstruction_loss"].cpu().detach().numpy()))
             emotion_loss.faces_reconstruction_loss.append(float(e_losses["faces_reconstruction_loss"].cpu().detach().numpy()))
             emotion_loss.emotions_reconstruction_loss.append(float(e_losses["emotions_reconstruction_loss"].cpu().detach().numpy()))
             
-            
+        training_losses['au_loss'].total_loss.append(numpy.nanmean(au_loss.total_loss))
+        training_losses['au_loss'].reconstruction_loss.append(numpy.nanmean(au_loss.reconstruction_loss))
+        training_losses['au_loss'].kld_loss.append(numpy.nanmean(au_loss.kld_loss))
+        training_losses['au_loss'].mmd_loss.append(numpy.nanmean(au_loss.mmd_loss))
+        training_losses['au_loss'].faces_reconstruction_loss.append(numpy.nanmean(au_loss.au_reconstruction_loss))
+        training_losses['au_loss'].emotions_reconstruction_loss.append(numpy.nanmean(au_loss.emotions_reconstruction_loss))
+        
+        '''
         training_losses['face_loss'].total_loss.append(numpy.nanmean(face_loss.total_loss))
         training_losses['face_loss'].reconstruction_loss.append(numpy.nanmean(face_loss.reconstruction_loss))
         training_losses['face_loss'].kld_loss.append(numpy.nanmean(face_loss.kld_loss))
         training_losses['face_loss'].mmd_loss.append(numpy.nanmean(face_loss.mmd_loss))
         training_losses['face_loss'].faces_reconstruction_loss.append(numpy.nanmean(face_loss.faces_reconstruction_loss))
         training_losses['face_loss'].emotions_reconstruction_loss.append(numpy.nanmean(face_loss.emotions_reconstruction_loss))
+        '''
         
         training_losses['multimodal_loss'].total_loss.append(numpy.nanmean(multimodal_loss.total_loss))
         training_losses['multimodal_loss'].reconstruction_loss.append(numpy.nanmean(multimodal_loss.reconstruction_loss))
         training_losses['multimodal_loss'].kld_loss.append(numpy.nanmean(multimodal_loss.kld_loss))
         training_losses['multimodal_loss'].mmd_loss.append(numpy.nanmean(multimodal_loss.mmd_loss))
-        training_losses['multimodal_loss'].faces_reconstruction_loss.append(numpy.nanmean(multimodal_loss.faces_reconstruction_loss))
+        training_losses['multimodal_loss'].au_reconstruction_loss.append(numpy.nanmean(multimodal_loss.au_reconstruction_loss))
         training_losses['multimodal_loss'].emotions_reconstruction_loss.append(numpy.nanmean(multimodal_loss.emotions_reconstruction_loss))
         
         training_losses['emotion_loss'].total_loss.append(numpy.nanmean(emotion_loss.total_loss))
         training_losses['emotion_loss'].reconstruction_loss.append(numpy.nanmean(emotion_loss.reconstruction_loss))
         training_losses['emotion_loss'].kld_loss.append(numpy.nanmean(emotion_loss.kld_loss))
         training_losses['emotion_loss'].mmd_loss.append(numpy.nanmean(emotion_loss.mmd_loss))
-        training_losses['emotion_loss'].faces_reconstruction_loss.append(numpy.nanmean(emotion_loss.faces_reconstruction_loss))
+        training_losses['emotion_loss'].au_reconstruction_loss.append(numpy.nanmean(emotion_loss.au_reconstruction_loss))
         training_losses['emotion_loss'].emotions_reconstruction_loss.append(numpy.nanmean(emotion_loss.emotions_reconstruction_loss))
 
         

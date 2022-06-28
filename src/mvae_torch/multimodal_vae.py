@@ -11,26 +11,35 @@ class MultimodalVariationalAutoencoder(torch.nn.Module):
 
     def __init__(
             self,
+            au_encoder: torch.nn.Module,
+            au_decoder: torch.nn.Module,
             face_encoder: torch.nn.Module,
             face_decoder: torch.nn.Module,
             emotion_encoder: torch.nn.Module,
             emotion_decoder: torch.nn.Module,
             feature_fusion_net: torch.nn.Module,
-            loss_weights: dict,
+            modes: dict,
             latent_space_dim: int,
             expert: Expert = None,
             use_cuda: bool = True
     ) -> None:
         super(MultimodalVariationalAutoencoder, self).__init__()
         self._logger = logging.getLogger(MultimodalVariationalAutoencoder.__name__)
-
-        self._face_encoder: torch.nn.Module = face_encoder
-        self._face_decoder: torch.nn.Module = face_decoder
-        self._emotion_encoder: torch.nn.Module = emotion_encoder
-        self._emotion_decoder: torch.nn.Module = emotion_decoder
+        
+        self._modes: dict = modes
+            
+        if self._modes['au'] is not None:
+            self._au_encoder: torch.nn.Module = au_encoder
+            self._au_decoder: torch.nn.Module = au_decoder
+        if self._modes['face'] is not None:
+            self._face_encoder: torch.nn.Module = face_encoder
+            self._face_decoder: torch.nn.Module = face_decoder
+        if self._modes['emotion'] is not None:
+            self._emotion_encoder: torch.nn.Module = emotion_encoder
+            self._emotion_decoder: torch.nn.Module = emotion_decoder
         self._feature_fusion_net: torch.nn.Module = feature_fusion_net
+            
         self._expert: Expert = expert
-        self._loss_weights: dict = loss_weights
         self._latent_space_dim: int = latent_space_dim
         
         if expert is not None:
@@ -61,40 +70,51 @@ class MultimodalVariationalAutoencoder(torch.nn.Module):
         mmd = x_kernel.mean() + y_kernel.mean() - 2*xy_kernel.mean()
         return mmd
 
-    def loss_function(
-            self,
-            faces: torch.Tensor,
-            emotions: torch.Tensor,
-            faces_reconstruction: torch.Tensor,
-            emotions_reconstruction: torch.Tensor,
-            z_loc: torch.Tensor,
-            z_scale: torch.Tensor,
-            beta: float,
-            latent_sample: torch.Tensor
-            ) -> dict:
+    def loss_function(self, 
+                      au: torch.Tensor,
+                      faces: torch.Tensor,
+                      emotions: torch.Tensor,
+                      au_reconstruction: torch.Tensor,
+                      faces_reconstruction: torch.Tensor,
+                      emotions_reconstruction: torch.Tensor,
+                      z_loc: torch.Tensor,
+                      z_scale: torch.Tensor,
+                      beta: float,
+                      latent_sample: torch.Tensor
+                     ) -> dict:
         """
         Computes the VAE loss function:
             KL(N(\mu, \sigma), N(0, 1)) = \log \frac{1}{\sigma} + \frac{\sigma^2 + \mu^2}{2} - \frac{1}{2}
         """
         # First calculate the reconstruction loss
-        if faces is not None:
-            faces_reconstruction_loss: torch.Tensor = torch_functional.mse_loss(faces_reconstruction, faces)
-        else: 
-            faces_reconstruction_loss: torch.Tensor = torch.Tensor([0.0])
-                
-        if emotions is not None:
-            emotions_reconstruction_loss: torch.Tensor = torch_functional.cross_entropy(emotions_reconstruction, emotions)
-        else:
-            emotions_reconstruction_loss: torch.Tensor = torch.Tensor([0.0])
-
-        if self.use_cuda:
-            faces_reconstruction_loss = faces_reconstruction_loss.cuda()
-            emotions_reconstruction_loss = emotions_reconstruction_loss.cuda()
-
-        faces_reconstruction_loss = self._loss_weights["face"] * faces_reconstruction_loss
-        emotions_reconstruction_loss = self._loss_weights["emotion"] * emotions_reconstruction_loss
-
-        reconstruction_loss = faces_reconstruction_loss + emotions_reconstruction_loss
+        reconstruction_loss = 0
+        
+        if self._modes["au"] is not None:
+            if au is not None:
+                au_reconstruction_loss: torch.Tensor = torch_functional.mse_loss(au_reconstruction, au)
+            else: 
+                au_reconstruction_loss: torch.Tensor = torch.Tensor([0.0])
+            if self.use_cuda: faces_reconstruction_loss = faces_reconstruction_loss.cuda()
+            au_reconstruction_loss = self._modes["au"].weight * au_reconstruction_loss
+            reconstruction_loss += au_reconstruction_loss
+            
+        if self._modes["face"] is not None: 
+            if faces is not None:
+                faces_reconstruction_loss: torch.Tensor = torch_functional.mse_loss(faces_reconstruction, faces)
+            else: 
+                faces_reconstruction_loss: torch.Tensor = torch.Tensor([0.0])
+            if self.use_cuda: faces_reconstruction_loss = faces_reconstruction_loss.cuda()
+            faces_reconstruction_loss = self._modes["face"].weight * faces_reconstruction_loss
+            reconstruction_loss += faces_reconstruction_loss
+            
+        if self._modes["emotion"] is not None:
+            if emotions is not None:
+                emotions_reconstruction_loss: torch.Tensor = torch_functional.cross_entropy(emotions_reconstruction, emotions)
+            else:
+                emotions_reconstruction_loss: torch.Tensor = torch.Tensor([0.0])
+            if self.use_cuda: faces_reconstruction_loss = faces_reconstruction_loss.cuda()
+            emotions_reconstruction_loss = self._modes["emotion"].weight * emotions_reconstruction_loss
+            reconstruction_loss += emotions_reconstruction_loss
 
         # Calculate the KLD loss
         log_var = torch.log(torch.square(z_scale))
@@ -103,7 +123,7 @@ class MultimodalVariationalAutoencoder(torch.nn.Module):
         
         true_samples = Variable(
                 torch.randn_like(latent_sample),
-                requires_grad=False
+                requires_grad = False
             )
         
         # Calculate the KLD loss
@@ -115,35 +135,53 @@ class MultimodalVariationalAutoencoder(torch.nn.Module):
         return {
             "total_loss": total_loss, "reconstruction_loss": reconstruction_loss,
             "kld_loss": kld_loss, "mmd_loss":mmd_loss,
+            "au_reconstruction_loss": au_reconstruction_loss,
             "faces_reconstruction_loss": faces_reconstruction_loss, 
             "emotions_reconstruction_loss": emotions_reconstruction_loss
         }
         
 
-    def _extract_batch_size_from_data(self, faces:torch.Tensor = None, emotions:torch.Tensor = None) -> int:
+    def _extract_batch_size_from_data(self, 
+                                      au:torch.Tensor = None, 
+                                      faces:torch.Tensor = None, 
+                                      emotions:torch.Tensor = None
+                                     ) -> int:
+        if au is not None:
+            batch_size = au.shape[0]
         if faces is not None:
             batch_size = faces.shape[0]
         elif emotions is not None:
             batch_size = emotions.shape[0]
         else:
             batch_size = 0
-
         return batch_size
+    
 
-    def infer_latent(self, faces: torch.Tensor, emotions: torch.Tensor) -> Tuple[torch.Tensor, ...]:
+    def infer_latent(self, 
+                     au: torch.Tensor, 
+                     faces: torch.Tensor, 
+                     emotions: torch.Tensor
+                    ) -> Tuple[torch.Tensor, ...]:
         # Use the encoders to get the parameters used to define q(z|x).
         
         batch_size: int = self._extract_batch_size_from_data(
+            au=au,
             faces=faces,
             emotions=emotions
         )
             
         if self._use_expert:
-            return self.apply_expert(faces, emotions, batch_size)
+            return self.apply_expert(au, faces, emotions, batch_size)
         else:
-            return self.features_fusion(faces, emotions, batch_size)
+            return self.features_fusion(au, faces, emotions, batch_size)
+        
     
-    def features_fusion(self, faces: torch.Tensor, emotions: torch.Tensor, batch_size: int) -> Tuple[torch.Tensor, ...]:
+    def features_fusion(self, 
+                        au: torch.tensor,
+                        faces: torch.Tensor, 
+                        emotions: torch.Tensor, 
+                        batch_size: int
+                       ) -> Tuple[torch.Tensor, ...]:
         # hardwired feature size
         # moreover I am using the same size for both features, this may not be optimal
         
@@ -163,7 +201,13 @@ class MultimodalVariationalAutoencoder(torch.nn.Module):
             
         return self._feature_fusion_net(face_features, emotion_features)
     
-    def apply_expert(self, faces: torch.Tensor, emotions: torch.Tensor, batch_size: int):
+    
+    def apply_expert(self, 
+                     au: torch.tensor,
+                     faces: torch.Tensor, 
+                     emotions: torch.Tensor, 
+                     batch_size: int
+                    ) -> Tuple[torch.Tensor, ...]:
         # Initialize the prior expert.
         # We initialize an additional dimension, along which we concatenate all the different experts.
         #   self.experts() then combines the information from these different modalities by multiplying
@@ -176,6 +220,11 @@ class MultimodalVariationalAutoencoder(torch.nn.Module):
         if self.use_cuda:
             z_loc = z_loc.cuda()
             z_scale = z_scale.cuda()
+            
+        if au is not None:
+            au_z_loc, au_z_scale = self._au_encoder.forward(au)
+            z_loc = torch.cat((z_loc, au_z_loc.unsqueeze(0)), dim=0)
+            z_scale = torch.cat((z_scale, au_z_scale.unsqueeze(0)), dim=0)
         
         if faces is not None:
             face_z_loc, face_z_scale = self._face_encoder.forward(faces)
@@ -199,9 +248,14 @@ class MultimodalVariationalAutoencoder(torch.nn.Module):
 
         return face_reconstruction, emotion_reconstruction
 
-    def forward(self, faces=None, emotions=None) -> Tuple[torch.Tensor, ...]:
+    def forward(self, 
+                au: torch.tensor= None, 
+                faces: torch.tensor= None, 
+                emotions: torch.tensor= None
+               ) -> Tuple[torch.Tensor, ...]:
         # Infer the latent distribution parameters
         z_loc, z_scale = self.infer_latent(
+            au=au,
             faces=faces,
             emotions=emotions
         )
@@ -209,12 +263,11 @@ class MultimodalVariationalAutoencoder(torch.nn.Module):
         # Sample from the latent space         
         epsilon: torch.Tensor = torch.randn_like(z_loc)
         latent_sample: torch.Tensor = z_loc + epsilon * z_scale
-        
-
+            
         # Reconstruct inputs based on that Gaussian sample
-        face_reconstruction, emotions_reconstruction = self.generate(
+        au_reconstruction, face_reconstruction, emotions_reconstruction = self.generate(
             latent_sample=latent_sample
         )
 
-        return face_reconstruction, emotions_reconstruction, z_loc, z_scale, latent_sample
+        return au_reconstruction, face_reconstruction, emotions_reconstruction, z_loc, z_scale, latent_sample
     

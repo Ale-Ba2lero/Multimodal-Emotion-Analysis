@@ -222,6 +222,44 @@ class DCGANFaceDecoder(nn.Module):
         z = self.hallucinate(z)
         return z  
 
+    
+#------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
+class AUEncoder(nn.Module):
+    def __init__(self, input_dim, z_dim=64, hidden_dim=512):
+        super(AUEncoder, self).__init__()
+        self.input_dim = input_dim
+        self.net = nn.Linear(input_dim, hidden_dim)
+        
+        self.z_loc_layer = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim),nn.ReLU(),nn.Dropout(p=0.2),
+            nn.Linear(hidden_dim, hidden_dim),nn.ReLU(),nn.Dropout(p=0.2),
+            nn.Linear(hidden_dim, z_dim))
+        
+        self.z_scale_layer = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim),nn.ReLU(),nn.Dropout(p=0.2),
+            nn.Linear(hidden_dim, hidden_dim),nn.ReLU(),nn.Dropout(p=0.2),
+            nn.Linear(hidden_dim, z_dim))
+        self.z_dim = z_dim
+
+    def forward(self, au):
+        hidden = self.net(au.to(torch.float64))
+        z_loc = self.z_loc_layer(hidden)
+        z_scale = torch.exp(self.z_scale_layer(hidden))
+        return z_loc, z_scale
+
+
+class AUDecoder(nn.Module):
+    def __init__(self, output_dim, z_dim=64, hidden_dim=512):
+        super(AUDecoder, self).__init__()
+        self.net = nn.Sequential(
+            nn.Linear(z_dim, hidden_dim),nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),nn.ReLU(),
+            nn.Linear(hidden_dim, output_dim)
+        )
+        
+    def forward(self, z):
+        return self.net(z)
 #------------------------------------------------------------------------------
 #------------------------------------------------------------------------------
 class EmotionEncoder(nn.Module):
