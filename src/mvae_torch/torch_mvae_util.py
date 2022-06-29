@@ -222,10 +222,8 @@ def images_to_images(model, dataset_loader, num_images=4, img_size=64, model_eva
     return display_array
 
 
-def recon_and_classiffication_accuracy(model, num_samples=100):
-
+def image_recon_and_classiffication_accuracy(model, num_samples=100):
     model.eval()
-    
     y_true = []
     y_pred = []
     
@@ -242,12 +240,26 @@ def recon_and_classiffication_accuracy(model, num_samples=100):
     return y_true, y_pred
 
 
-def classiffication_accuracy(model, dataset_loader):
+def au_recon_and_classiffication_accuracy(model, num_samples=100):
     model.eval()
+    y_true = []
+    y_pred = []
     
-    emo_acc = torch.zeros((8,), dtype=torch.int32)
-    total_emo = torch.zeros((8,), dtype=torch.int32)
-    
+    with torch.no_grad():
+        for sample in tqdm.tqdm(range(num_samples)):
+            random_labels = torch.randint(low=0, high=8, size=(16,)).to("cuda")
+            reconstructed_au, _, _, _, _ = model(au=None, emotions=random_labels)
+            _, reconstructed_emotions, _, _, _ = model(au=reconstructed_au, emotions=None)
+            reconstructed_emotions = torch.argmax(reconstructed_emotions, 1)
+            
+            y_true += random_labels.cpu()
+            y_pred += reconstructed_emotions.cpu()
+
+    return y_true, y_pred
+
+
+def image_classiffication_accuracy(model, dataset_loader):
+    model.eval()
     y_true = []
     y_pred = []
     
@@ -257,6 +269,25 @@ def classiffication_accuracy(model, dataset_loader):
             image = sample['image'].cuda()
 
             _, reconstructed_emotions, _, _, _ = model(faces=image, emotions=None)
+            reconstructed_emotions = torch.argmax(reconstructed_emotions, 1)
+            
+            y_true += labels.cpu()
+            y_pred += reconstructed_emotions.cpu()
+
+    return y_true, y_pred
+
+
+def au_classiffication_accuracy(model, dataset_loader):
+    model.eval()
+    y_true = []
+    y_pred = []
+    
+    with torch.no_grad():
+        for sample in tqdm.tqdm(iter(dataset_loader)):
+            au, labels = sample
+            au, labels = au.cuda(), labels.cuda()
+
+            _, reconstructed_emotions, _, _, _ = model(au=au, emotions=None)
             reconstructed_emotions = torch.argmax(reconstructed_emotions, 1)
             
             y_true += labels.cpu()
@@ -276,31 +307,29 @@ def print_losses(training_losses, title=None, skipframe=0):
     ax1.set_title('Reconstruction loss')
     ax1.plot(training_losses['multimodal_loss'].total_loss[skipframe:], color='red', label='multimodal')
     ax1.plot(training_losses['emotion_loss'].total_loss[skipframe:], color='green', label='emotion')
-    ax1.plot(training_losses['face_loss'].total_loss[skipframe:], color='blue', label='face')
+    ax1.plot(training_losses['au_loss'].total_loss[skipframe:], color='blue', label='au')
     ax1.legend(loc="upper right")
     
     ax2.set_title('KLD loss')
     ax2.plot(training_losses['multimodal_loss'].kld_loss[skipframe:], color='red', label='multimodal')
     ax2.plot(training_losses['emotion_loss'].kld_loss[skipframe:], color='green', label='emotion')
-    ax2.plot(training_losses['face_loss'].kld_loss[skipframe:], color='blue', label='face')
+    ax2.plot(training_losses['au_loss'].kld_loss[skipframe:], color='blue', label='au')
     ax2.legend(loc="upper right")
     
     ax3.set_title('MMD Loss')
     ax3.plot(training_losses['multimodal_loss'].mmd_loss[skipframe:], color='red', label='multimodal')
     ax3.plot(training_losses['emotion_loss'].mmd_loss[skipframe:], color='green', label='emotion')
-    ax3.plot(training_losses['face_loss'].mmd_loss[skipframe:], color='blue', label='face')
+    ax3.plot(training_losses['au_loss'].mmd_loss[skipframe:], color='blue', label='au')
     ax3.legend(loc="upper right")
 
-    ax4.set_title('Face reconstruction loss')
-    ax4.plot(training_losses['multimodal_loss'].faces_reconstruction_loss[skipframe:], color='red', label='multimodal')
-    #ax4.plot(training_losses['emotion_loss'].faces_reconstruction_loss[skipframe:], color='green', label='emotion')
-    ax4.plot(training_losses['face_loss'].faces_reconstruction_loss[skipframe:], color='blue', label='face')
+    ax4.set_title('AU reconstruction loss')
+    ax4.plot(training_losses['multimodal_loss'].au_reconstruction_loss[skipframe:], color='red', label='multimodal')
+    ax4.plot(training_losses['au_loss'].au_reconstruction_loss[skipframe:], color='blue', label='au')
     ax4.legend(loc="upper right")
 
     ax5.set_title('Emotion reconstruction loss')
     ax5.plot(training_losses['multimodal_loss'].emotions_reconstruction_loss[skipframe:], color='red', label='multimodal')
     ax5.plot(training_losses['emotion_loss'].emotions_reconstruction_loss[skipframe:], color='green', label='emotion')
-    #ax5.plot(training_losses['face_loss'].emotions_reconstruction_loss[skipframe:], color='blue', label='face')
     ax5.legend(loc="upper right")    
 
     # Hide x labels and tick labels for top plots and y ticks for right plots.
