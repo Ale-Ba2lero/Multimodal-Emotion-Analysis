@@ -17,6 +17,8 @@ import tqdm
 from torch.utils.data import Dataset
 from config_args import ConfigTrainArgs
 
+import torch.nn.functional as F
+
 
 #from dataset.iemocap.iemocap_enrich import LoadUtils
 
@@ -294,6 +296,23 @@ def au_classiffication_accuracy(model, dataset_loader):
             y_pred += reconstructed_emotions.cpu()
 
     return y_true, y_pred
+
+
+def au_to_au(model, dataset_loader):
+    model.eval()
+    test_loss = 0
+    count = 0
+    
+    with torch.no_grad():
+        for sample in iter(dataset_loader):
+            au, _ = sample
+            au = au.cuda()
+            count += au.shape[0]
+            reconstructed_au, _, _, _, _ = model(au=au, emotions=None)
+            test_loss += F.mse_loss(au, reconstructed_au)
+    
+    test_loss = test_loss.cpu()
+    return test_loss / count
     
 
 def print_losses(training_losses, title=None, skipframe=0):

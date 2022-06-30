@@ -100,8 +100,7 @@ def build_model(
     if modes['au'] is not None:
         au_decoder: torch.nn.Module = nnm.AUDecoder(
             output_dim=au_dim,
-            z_dim=latent_space_dim,
-            hidden_dim=hidden_dim
+            z_dim=latent_space_dim
         )
     else: au_decoder: torch.nn.Module = None
     

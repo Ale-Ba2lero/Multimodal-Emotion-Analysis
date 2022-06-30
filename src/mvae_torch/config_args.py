@@ -8,22 +8,23 @@ class ConfigModelArgs:
     cat_dim = 8
     au_dim = 18
     
+    # conv network args 
     img_size = 64
+    num_filters = 32
     
     z_dim = 50
-    num_filters = 32
     hidden_dim= 128
     modes = {'au': Mode(1.0, 64), 
              'face': None, 
-             'emotion': Mode(50.0, 64)
+             'emotion': Mode(10e5, 64)
             }
-    expert_type = "moe" # moe, poe, fusion
+    expert_type = "poe" # moe, poe, fusion
     dataset_path = '/home/studenti/ballerini/datasets/au-emo.csv'
 
 class ConfigTrainArgs:
-    learning_rate= 1e-6         #<--------- 1e-3 1e-4 1e-5
+    learning_rate= 1e-4         #<--------- 1e-3 1e-4 1e-5
     static_annealing_beta= 1e-7
-    num_epochs= 1000
+    num_epochs= 100
     batch_size= 512
     num_workers= 32
     optim_betas= [ 0.95, 0.98 ]

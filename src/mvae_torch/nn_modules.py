@@ -225,23 +225,28 @@ class DCGANFaceDecoder(nn.Module):
     
 #------------------------------------------------------------------------------
 #------------------------------------------------------------------------------
+
+
 class AUEncoder(nn.Module):
-    def __init__(self, input_dim, z_dim=64, hidden_dim=512):
+    def __init__(self, input_dim, z_dim=64, hidden_dim=256):
         super(AUEncoder, self).__init__()
         self.input_dim = input_dim
         self.net = nn.Sequential(
-            nn.Linear(input_dim, hidden_dim // 4), nn.ReLU(),
-            nn.Linear(hidden_dim // 4, hidden_dim // 4), nn.ReLU(),
-            nn.Linear(hidden_dim // 4, hidden_dim // 4), nn.ReLU(),
-            nn.Linear(hidden_dim // 4, hidden_dim), nn.ReLU(),
+            nn.Linear(input_dim, hidden_dim, bias=False), nn.BatchNorm1d(hidden_dim), nn.ReLU(), nn.Dropout(p=0.1),
+            nn.Linear(hidden_dim, hidden_dim, bias=False), nn.BatchNorm1d(hidden_dim), nn.ReLU(), nn.Dropout(p=0.1),
+            nn.Linear(hidden_dim, hidden_dim, bias=False), nn.BatchNorm1d(hidden_dim), nn.ReLU(), nn.Dropout(p=0.1),
         )
         
         self.z_loc_layer = nn.Sequential(
-            nn.Linear(hidden_dim, hidden_dim), nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim, bias=False), nn.BatchNorm1d(hidden_dim), nn.ReLU(), nn.Dropout(p=0.1),
+            nn.Linear(hidden_dim, hidden_dim, bias=False), nn.BatchNorm1d(hidden_dim), nn.ReLU(), nn.Dropout(p=0.1),
+            nn.Linear(hidden_dim, hidden_dim, bias=False), nn.BatchNorm1d(hidden_dim), nn.ReLU(), nn.Dropout(p=0.1),
             nn.Linear(hidden_dim, z_dim))
         
         self.z_scale_layer = nn.Sequential(
-            nn.Linear(hidden_dim, hidden_dim),nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim, bias=False), nn.BatchNorm1d(hidden_dim),nn.ReLU(), nn.Dropout(p=0.1),
+            nn.Linear(hidden_dim, hidden_dim, bias=False), nn.BatchNorm1d(hidden_dim), nn.ReLU(), nn.Dropout(p=0.1),
+            nn.Linear(hidden_dim, hidden_dim, bias=False), nn.BatchNorm1d(hidden_dim), nn.ReLU(), nn.Dropout(p=0.1),
             nn.Linear(hidden_dim, z_dim))
         self.z_dim = z_dim
 
@@ -253,18 +258,21 @@ class AUEncoder(nn.Module):
 
 
 class AUDecoder(nn.Module):
-    def __init__(self, output_dim, z_dim=64, hidden_dim=512):
+    def __init__(self, output_dim, z_dim=64, hidden_dim=256):
         super(AUDecoder, self).__init__()
         self.net = nn.Sequential(
-            nn.Linear(z_dim, hidden_dim), nn.ReLU(),
-            nn.Linear(hidden_dim, hidden_dim // 4), nn.ReLU(),
-            nn.Linear(hidden_dim // 4, hidden_dim // 4), nn.ReLU(),
-            nn.Linear(hidden_dim // 4, hidden_dim // 4), nn.ReLU(),
-            nn.Linear(hidden_dim // 4, output_dim)
+            nn.Linear(z_dim, hidden_dim, bias=False), nn.BatchNorm1d(hidden_dim), nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim, bias=False), nn.BatchNorm1d(hidden_dim), nn.ReLU(), nn.Dropout(p=0.1),
+            nn.Linear(hidden_dim, hidden_dim, bias=False), nn.BatchNorm1d(hidden_dim), nn.ReLU(), nn.Dropout(p=0.1),
+            nn.Linear(hidden_dim, hidden_dim, bias=False), nn.BatchNorm1d(hidden_dim), nn.ReLU(), nn.Dropout(p=0.1),
+            
+            nn.Linear(hidden_dim, output_dim)
         )
         
     def forward(self, z):
         return self.net(z)
+    
+    
 #------------------------------------------------------------------------------
 #------------------------------------------------------------------------------
 class EmotionEncoder(nn.Module):
