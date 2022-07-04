@@ -182,7 +182,7 @@ class MultimodalVariationalAutoencoder(torch.nn.Module):
     
     def features_fusion(self, 
                         au: torch.tensor,
-                        faces: torch.Tensor, 
+                        #faces: torch.Tensor, 
                         emotions: torch.Tensor, 
                         batch_size: int
                        ) -> Tuple[torch.Tensor, ...]:
@@ -191,7 +191,7 @@ class MultimodalVariationalAutoencoder(torch.nn.Module):
         # moreover I am using the same size for both features, this may not be optimal
 
         if au is not None:
-            au_features = self._face_encoder.forward(au)
+            au_features = self._au_encoder.forward(au)
         else:
             au_features = torch.zeros(batch_size, self._au_encoder.features_size)
             
@@ -259,7 +259,8 @@ class MultimodalVariationalAutoencoder(torch.nn.Module):
     
 
     def generate(self, latent_sample: torch.Tensor) -> Tuple[torch.Tensor, ...]:
-        au_reconstruction = self._au_decoder.forward(latent_sample)
+        au_reconstruction, _ = self._au_decoder.forward(latent_sample)
+        
         ''' face_reconstruction = self._face_decoder.forward(latent_sample) '''
         emotion_reconstruction = self._emotion_decoder.forward(latent_sample)
 

@@ -12,7 +12,7 @@ from multimodal_vae import MultimodalVariationalAutoencoder
 import nn_modules as nnm
 
 from torch_mvae_util import Expert, ProductOfExperts, MixtureOfExpertsComparableComplexity, AnnealingBetaGeneratorFactory
-from config_args import ConfigTrainArgs
+from config_args import ConfigTrainArgs, Mode
 
 import torch_mvae_util as U
 
@@ -23,16 +23,24 @@ def build_model(
     hidden_dim: int,
     num_filters: int,
     modes: dict,
+    au_weight: float,
+    emotion_weight: float,
     expert_type: str,
     use_cuda: bool
 ) -> torch.nn.Module:
+    
+    modes = {'au': Mode(au_weight, 32),  
+             'face': None, 
+             'emotion': Mode(emotion_weight, 32)
+            }
+        
     
     if expert_type == 'fusion':
         expert: Expert = None
         feature_size = 0
         # Features Fusion mode modules
         if modes['au'] is not None:
-            au_encoder: torch.nn.Module = nnm.AUEncoder(
+            au_encoder: torch.nn.Module = nnm.AUFeatureExtraction(
                 input_dim=au_dim,
                 features_size=modes['au'].feature_size
             )
@@ -51,14 +59,14 @@ def build_model(
         if modes['emotion'] is not None:
             emotion_encoder: torch.nn.Module = nnm.EmotionFeatureExtraction(
                 input_dim=cat_dim,
-                features_size=modes['emotions'].feature_size  
+                features_size=modes['emotion'].feature_size  
             )
-            feature_size += modes['emotions'].feature_size
+            feature_size += modes['emotion'].feature_size
         else: emotion_encoder: torch.nn.Module = None
 
         feature_fusion_net: torch.nn.Module = nnm.FeaturesFusion(
-            z_dim=latent_space_dim, 
             feature_size=feature_size,
+            z_dim=latent_space_dim,
             hidden_dim=hidden_dim
         )
     else:

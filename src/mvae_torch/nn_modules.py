@@ -9,6 +9,26 @@ class Swish(nn.Module):
         return x * torch.sigmoid(x)
 
 #------------------------------------------------------------------------------
+class AUFeatureExtraction(nn.Module):
+    def __init__(self, input_dim, features_size, hidden_dim=256):
+        super(AUFeatureExtraction, self).__init__()
+        self.input_dim = input_dim
+        self.features_size = features_size
+        
+        self.net = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim, bias=False), 
+            nn.BatchNorm1d(hidden_dim), nn.ReLU(), nn.Dropout(p=0.1),
+            nn.Linear(hidden_dim, hidden_dim, bias=False), 
+            nn.BatchNorm1d(hidden_dim), nn.ReLU(), nn.Dropout(p=0.1),
+            nn.Linear(hidden_dim, hidden_dim, bias=False), 
+            nn.BatchNorm1d(hidden_dim), nn.ReLU(), nn.Dropout(p=0.1),
+            nn.Linear(hidden_dim, features_size),
+        )
+
+    def forward(self, au):
+        features = self.net(au.to(torch.float64))
+        return features
+    
 class FaceFeatureExtraction(nn.Module):
     def __init__(self, features_size=64, num_filters=64):
         super(FaceFeatureExtraction, self).__init__()
@@ -59,7 +79,7 @@ class EmotionFeatureExtraction(nn.Module):
         return features
 
 class FeaturesFusion(nn.Module):
-    def __init__(self, z_dim=64, feature_size=64, hidden_dim=128):
+    def __init__(self, feature_size=64, z_dim=64, hidden_dim=128):
         super(FeaturesFusion, self).__init__()
         self.fc1 = nn.Linear(feature_size, hidden_dim)
         self.fc2 = nn.Linear(hidden_dim, hidden_dim)
@@ -67,8 +87,8 @@ class FeaturesFusion(nn.Module):
         self.fc_logvar = nn.Linear(hidden_dim, z_dim)
         self.relu = nn.ReLU()
 
-    def forward(self, face_features, emotion_features):
-        features = torch.cat((face_features, emotion_features), 1)
+    def forward(self, *features):
+        features = torch.cat(features, 1)
         hidden = self.relu(self.fc1(features))
         hidden = self.relu(self.fc2(hidden))
         z_loc = self.fc_means(hidden)
@@ -231,24 +251,37 @@ class AUEncoder(nn.Module):
     def __init__(self, input_dim, z_dim=64, hidden_dim=256):
         super(AUEncoder, self).__init__()
         self.input_dim = input_dim
-        self.net = nn.Sequential(
-            nn.Linear(input_dim, hidden_dim, bias=False), nn.BatchNorm1d(hidden_dim), nn.ReLU(), nn.Dropout(p=0.1),
-            nn.Linear(hidden_dim, hidden_dim, bias=False), nn.BatchNorm1d(hidden_dim), nn.ReLU(), nn.Dropout(p=0.1),
-            nn.Linear(hidden_dim, hidden_dim, bias=False), nn.BatchNorm1d(hidden_dim), nn.ReLU(), nn.Dropout(p=0.1),
-        )
-        
+        self.net = nn.Linear(input_dim, hidden_dim)
         self.z_loc_layer = nn.Sequential(
-            nn.Linear(hidden_dim, hidden_dim, bias=False), nn.BatchNorm1d(hidden_dim), nn.ReLU(), nn.Dropout(p=0.1),
-            nn.Linear(hidden_dim, hidden_dim, bias=False), nn.BatchNorm1d(hidden_dim), nn.ReLU(), nn.Dropout(p=0.1),
-            nn.Linear(hidden_dim, hidden_dim, bias=False), nn.BatchNorm1d(hidden_dim), nn.ReLU(), nn.Dropout(p=0.1),
+            nn.Linear(hidden_dim, hidden_dim, bias=False),
+            nn.BatchNorm1d(hidden_dim), 
+            nn.ReLU(), 
+            #nn.Dropout(p=0.1),
+            nn.Linear(hidden_dim, hidden_dim, bias=False),
+            nn.BatchNorm1d(hidden_dim), 
+            nn.ReLU(), 
+            #nn.Dropout(p=0.1),
+            nn.Linear(hidden_dim, hidden_dim, bias=False),
+            nn.BatchNorm1d(hidden_dim), 
+            nn.ReLU(), 
+            #nn.Dropout(p=0.1),
             nn.Linear(hidden_dim, z_dim))
-        
         self.z_scale_layer = nn.Sequential(
-            nn.Linear(hidden_dim, hidden_dim, bias=False), nn.BatchNorm1d(hidden_dim),nn.ReLU(), nn.Dropout(p=0.1),
-            nn.Linear(hidden_dim, hidden_dim, bias=False), nn.BatchNorm1d(hidden_dim), nn.ReLU(), nn.Dropout(p=0.1),
-            nn.Linear(hidden_dim, hidden_dim, bias=False), nn.BatchNorm1d(hidden_dim), nn.ReLU(), nn.Dropout(p=0.1),
+            nn.Linear(hidden_dim, hidden_dim, bias=False),
+            nn.BatchNorm1d(hidden_dim), 
+            nn.ReLU(), 
+            #nn.Dropout(p=0.1),
+            nn.Linear(hidden_dim, hidden_dim, bias=False),
+            nn.BatchNorm1d(hidden_dim), 
+            nn.ReLU(), 
+            #nn.Dropout(p=0.1),
+            nn.Linear(hidden_dim, hidden_dim, bias=False),
+            nn.BatchNorm1d(hidden_dim), 
+            nn.ReLU(), 
+            #nn.Dropout(p=0.1),
             nn.Linear(hidden_dim, z_dim))
         self.z_dim = z_dim
+        
 
     def forward(self, au):
         hidden = self.net(au.to(torch.float64))
@@ -261,16 +294,43 @@ class AUDecoder(nn.Module):
     def __init__(self, output_dim, z_dim=64, hidden_dim=256):
         super(AUDecoder, self).__init__()
         self.net = nn.Sequential(
-            nn.Linear(z_dim, hidden_dim, bias=False), nn.BatchNorm1d(hidden_dim), nn.ReLU(),
-            nn.Linear(hidden_dim, hidden_dim, bias=False), nn.BatchNorm1d(hidden_dim), nn.ReLU(), nn.Dropout(p=0.1),
-            nn.Linear(hidden_dim, hidden_dim, bias=False), nn.BatchNorm1d(hidden_dim), nn.ReLU(), nn.Dropout(p=0.1),
-            nn.Linear(hidden_dim, hidden_dim, bias=False), nn.BatchNorm1d(hidden_dim), nn.ReLU(), nn.Dropout(p=0.1),
-            
-            nn.Linear(hidden_dim, output_dim)
-        )
+            nn.Linear(z_dim, hidden_dim),
+            nn.ReLU())
+        
+        self.au_loc_layer = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim, bias=False),
+            nn.BatchNorm1d(hidden_dim), 
+            nn.ReLU(), 
+            #nn.Dropout(p=0.1),
+            nn.Linear(hidden_dim, hidden_dim, bias=False),
+            nn.BatchNorm1d(hidden_dim), 
+            nn.ReLU(), 
+            #nn.Dropout(p=0.1),
+            nn.Linear(hidden_dim, hidden_dim, bias=False),
+            nn.BatchNorm1d(hidden_dim), 
+            nn.ReLU(), 
+            #nn.Dropout(p=0.1),
+            nn.Linear(hidden_dim, output_dim))
+        self.au_scale_layer = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim, bias=False),
+            nn.BatchNorm1d(hidden_dim), 
+            nn.ReLU(), 
+            #nn.Dropout(p=0.1),
+            nn.Linear(hidden_dim, hidden_dim, bias=False),
+            nn.BatchNorm1d(hidden_dim), 
+            nn.ReLU(), 
+            #nn.Dropout(p=0.1),
+            nn.Linear(hidden_dim, hidden_dim, bias=False),
+            nn.BatchNorm1d(hidden_dim), 
+            nn.ReLU(), 
+            #nn.Dropout(p=0.1),
+            nn.Linear(hidden_dim, output_dim))
         
     def forward(self, z):
-        return self.net(z)
+        hidden = self.net(z)
+        au_loc = self.au_loc_layer(hidden)
+        au_scale = torch.exp(self.au_scale_layer(hidden))
+        return au_loc, au_scale
     
     
 #------------------------------------------------------------------------------
@@ -282,13 +342,17 @@ class EmotionEncoder(nn.Module):
         self.net = nn.Linear(input_dim, hidden_dim)
         
         self.z_loc_layer = nn.Sequential(
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),nn.Dropout(p=0.2),
+            nn.Linear(hidden_dim, hidden_dim, bias=False), 
+            nn.BatchNorm1d(hidden_dim), 
+            nn.ReLU(), 
+            #nn.Dropout(p=0.1),
             nn.Linear(hidden_dim, z_dim))
         
         self.z_scale_layer = nn.Sequential(
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),nn.Dropout(p=0.2),
+            nn.Linear(hidden_dim, hidden_dim, bias=False),
+            nn.BatchNorm1d(hidden_dim), 
+            nn.ReLU(), 
+            #nn.Dropout(p=0.1),
             nn.Linear(hidden_dim, z_dim))
         self.z_dim = z_dim
 
@@ -304,8 +368,10 @@ class EmotionDecoder(nn.Module):
     def __init__(self, output_dim, z_dim=64, hidden_dim=512):
         super(EmotionDecoder, self).__init__()
         self.net = nn.Sequential(
-            nn.Linear(z_dim, hidden_dim),
+            nn.Linear(z_dim, hidden_dim, bias=False), 
+            nn.BatchNorm1d(hidden_dim),
             nn.ReLU(),
+            #nn.Dropout(p=0.1),
             nn.Linear(hidden_dim, output_dim)
         )
         
