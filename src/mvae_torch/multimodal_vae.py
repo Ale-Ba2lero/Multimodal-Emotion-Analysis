@@ -80,7 +80,8 @@ class MultimodalVariationalAutoencoder(torch.nn.Module):
                       z_loc: torch.Tensor,
                       z_scale: torch.Tensor,
                       beta: float,
-                      latent_sample: torch.Tensor
+                      latent_sample: torch.Tensor,
+                      alpha: float=1,
                      ) -> dict:
         """
         Computes the VAE loss function:
@@ -132,7 +133,7 @@ class MultimodalVariationalAutoencoder(torch.nn.Module):
         mmd_loss = self.compute_mmd(true_samples, latent_sample)
         
         # Calculate the Total Loss
-        total_loss = reconstruction_loss + mmd_loss + beta * kld_loss
+        total_loss = reconstruction_loss + alpha * mmd_loss + beta * kld_loss
         
         return {
             "total_loss": total_loss, 

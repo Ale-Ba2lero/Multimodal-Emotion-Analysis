@@ -29,9 +29,9 @@ def build_model(
     use_cuda: bool
 ) -> torch.nn.Module:
     
-    modes = {'au': Mode(au_weight, 32),  
+    modes = {'au': Mode(au_weight, 50),  
              'face': None, 
-             'emotion': Mode(emotion_weight, 32)
+             'emotion': Mode(emotion_weight, 50)
             }
         
     
@@ -151,7 +151,8 @@ def build_model(
 def eval_model_training(
         model,
         optimizer,
-        beta,
+        alpha=1,
+        beta=1,
         au=None,
         # faces=None,
         emotions=None
@@ -181,6 +182,7 @@ def eval_model_training(
         emotions_reconstruction=emotion_reconstruction,
         z_loc=z_loc_expert,
         z_scale=z_scale_expert,
+        alpha=alpha,
         beta=beta,
         latent_sample=latent_sample
     )
@@ -241,6 +243,7 @@ def train(
         # face_loss = StatLoss()
         emotion_loss = StatLoss()
         annealing_beta = cfg.static_annealing_beta
+        alpha=cfg.alpha
 
         # Do a training epoch over each mini-batch returned
         #   by the data loader
@@ -259,6 +262,7 @@ def train(
             m_losses: dict = eval_model_training(
                 model=mvae_model,
                 optimizer=optimizer,
+                alpha=alpha,
                 beta=annealing_beta,
                 au=au,
                 emotions=emotions
@@ -276,6 +280,7 @@ def train(
             a_losses: dict = eval_model_training(
                 model=mvae_model,
                 optimizer=optimizer,
+                alpha=alpha,
                 beta=annealing_beta,
                 au=au,
                 emotions=None
@@ -294,6 +299,7 @@ def train(
             f_losses: dict = eval_model_training(
                 model=mvae_model,
                 optimizer=optimizer,
+                alpha=alpha,
                 beta=annealing_beta,
                 faces=faces,
                 emotions=None
@@ -312,6 +318,7 @@ def train(
             e_losses: dict = eval_model_training(
                 model=mvae_model,
                 optimizer=optimizer,
+                alpha=alpha,
                 beta=annealing_beta,
                 au=None,
                 emotions=emotions

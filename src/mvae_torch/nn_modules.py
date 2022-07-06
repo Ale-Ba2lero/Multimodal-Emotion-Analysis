@@ -252,6 +252,7 @@ class AUEncoder(nn.Module):
         super(AUEncoder, self).__init__()
         self.input_dim = input_dim
         self.net = nn.Linear(input_dim, hidden_dim)
+        
         self.z_loc_layer = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim, bias=False),
             nn.BatchNorm1d(hidden_dim), 
@@ -262,6 +263,7 @@ class AUEncoder(nn.Module):
             nn.ReLU(), 
             #nn.Dropout(p=0.1),
             nn.Linear(hidden_dim, z_dim))
+        
         self.z_scale_layer = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim, bias=False),
             nn.BatchNorm1d(hidden_dim), 
@@ -299,6 +301,7 @@ class AUDecoder(nn.Module):
             nn.ReLU(), 
             #nn.Dropout(p=0.1),
             nn.Linear(hidden_dim, output_dim))
+        
         self.au_scale_layer = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim, bias=False),
             nn.BatchNorm1d(hidden_dim), 
