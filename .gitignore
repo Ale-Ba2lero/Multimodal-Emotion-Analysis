@@ -130,5 +130,4 @@ dmypy.json
 
 # Custom
 *.pth
-/imgs/*
 src/trained_models/*
