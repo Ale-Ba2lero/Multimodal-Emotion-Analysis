@@ -257,22 +257,18 @@ class AUEncoder(nn.Module):
             nn.Linear(hidden_dim, hidden_dim, bias=False),
             nn.BatchNorm1d(hidden_dim), 
             nn.ReLU(), 
-            #nn.Dropout(p=0.1),
             nn.Linear(hidden_dim, hidden_dim, bias=False),
             nn.BatchNorm1d(hidden_dim), 
             nn.ReLU(), 
-            #nn.Dropout(p=0.1),
             nn.Linear(hidden_dim, z_dim))
         
         self.z_scale_layer = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim, bias=False),
             nn.BatchNorm1d(hidden_dim), 
             nn.ReLU(), 
-            #nn.Dropout(p=0.1),
             nn.Linear(hidden_dim, hidden_dim, bias=False),
             nn.BatchNorm1d(hidden_dim), 
             nn.ReLU(), 
-            #nn.Dropout(p=0.1),
             nn.Linear(hidden_dim, z_dim))
         self.z_dim = z_dim
         
@@ -291,34 +287,21 @@ class AUDecoder(nn.Module):
             nn.Linear(z_dim, hidden_dim),
             nn.ReLU())
         
-        self.au_loc_layer = nn.Sequential(
+        self.hidden = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim, bias=False),
             nn.BatchNorm1d(hidden_dim), 
             nn.ReLU(), 
-            #nn.Dropout(p=0.1),
             nn.Linear(hidden_dim, hidden_dim, bias=False),
             nn.BatchNorm1d(hidden_dim), 
             nn.ReLU(), 
-            #nn.Dropout(p=0.1),
-            nn.Linear(hidden_dim, output_dim))
+            nn.Linear(hidden_dim, output_dim),
+            nn.Sigmoid())
         
-        self.au_scale_layer = nn.Sequential(
-            nn.Linear(hidden_dim, hidden_dim, bias=False),
-            nn.BatchNorm1d(hidden_dim), 
-            nn.ReLU(), 
-            #nn.Dropout(p=0.1),
-            nn.Linear(hidden_dim, hidden_dim, bias=False),
-            nn.BatchNorm1d(hidden_dim), 
-            nn.ReLU(), 
-            #nn.Dropout(p=0.1),
-            nn.Linear(hidden_dim, output_dim))
         
     def forward(self, z):
         hidden = self.net(z)
-        au_loc = self.au_loc_layer(hidden)
-        au_scale = torch.exp(self.au_scale_layer(hidden))
-        return au_loc, au_scale
-    
+        out = self.hidden(hidden)
+        return out
     
 #------------------------------------------------------------------------------
 #------------------------------------------------------------------------------
@@ -331,21 +314,20 @@ class EmotionEncoder(nn.Module):
         self.z_loc_layer = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim, bias=False), 
             nn.BatchNorm1d(hidden_dim), 
-            nn.ReLU(), 
-            #nn.Dropout(p=0.1),
+            nn.ReLU(),
             nn.Linear(hidden_dim, z_dim))
         
         self.z_scale_layer = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim, bias=False),
             nn.BatchNorm1d(hidden_dim), 
-            nn.ReLU(), 
-            #nn.Dropout(p=0.1),
+            nn.ReLU(),
             nn.Linear(hidden_dim, z_dim))
         self.z_dim = z_dim
 
     def forward(self, emotion):
         emotion = torch.nn.functional.one_hot(emotion, num_classes=self.input_dim)
-        hidden = self.net(emotion.to(torch.float64))
+        emotion = emotion.reshape(-1, self.input_dim).to(torch.float64)
+        hidden = self.net(emotion)
         z_loc = self.z_loc_layer(hidden)
         z_scale = torch.exp(self.z_scale_layer(hidden))
         return z_loc, z_scale
@@ -358,7 +340,6 @@ class EmotionDecoder(nn.Module):
             nn.Linear(z_dim, hidden_dim, bias=False), 
             nn.BatchNorm1d(hidden_dim),
             nn.ReLU(),
-            #nn.Dropout(p=0.1),
             nn.Linear(hidden_dim, output_dim)
         )
         

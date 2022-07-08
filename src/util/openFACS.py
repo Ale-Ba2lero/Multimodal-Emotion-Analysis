@@ -26,8 +26,8 @@ class OpenFacsInterface(object):
             "AU23": au_list[13],
             "AU25": au_list[14],
             "AU26": au_list[15],
-            "AU28": au_list[16],
-            "AU45": au_list[17],
+            "AU28": 0, #au_list[16],
+            "AU45": au_list[16],
             "Speed": speed,
         }
 

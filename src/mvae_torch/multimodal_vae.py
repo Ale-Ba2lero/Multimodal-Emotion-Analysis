@@ -260,7 +260,7 @@ class MultimodalVariationalAutoencoder(torch.nn.Module):
     
 
     def generate(self, latent_sample: torch.Tensor) -> Tuple[torch.Tensor, ...]:
-        au_reconstruction, _ = self._au_decoder.forward(latent_sample)
+        au_reconstruction = self._au_decoder.forward(latent_sample)
         
         ''' face_reconstruction = self._face_decoder.forward(latent_sample) '''
         emotion_reconstruction = self._emotion_decoder.forward(latent_sample)
