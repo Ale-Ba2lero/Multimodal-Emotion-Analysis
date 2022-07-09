@@ -294,9 +294,7 @@ class AUDecoder(nn.Module):
             nn.Linear(hidden_dim, hidden_dim, bias=False),
             nn.BatchNorm1d(hidden_dim), 
             nn.ReLU(), 
-            nn.Linear(hidden_dim, output_dim),
-            nn.Sigmoid())
-        
+            nn.Linear(hidden_dim, output_dim),nn.Sigmoid())
         
     def forward(self, z):
         hidden = self.net(z)

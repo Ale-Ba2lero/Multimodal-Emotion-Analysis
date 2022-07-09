@@ -5,23 +5,23 @@ import os, sys; sys.path.append(os.path.dirname(os.getcwd()))
 
 import itertools
 import pickle
-from typing import Tuple, Generator, List, Any, Optional
-import matplotlib.pyplot as plt
-import util.RAVDESS_dataset_util as Rd
 
 import numpy
-
+import pandas as pd
 import numpy.random
-import torch
 import tqdm
+import matplotlib.pyplot as plt
 
-from torch.utils.data import Dataset
-from config_args import ConfigTrainArgs
-
+import torch
+from torch.utils.data import Dataset, random_split, DataLoader
 import torch.nn.functional as F
 
+from typing import Tuple, Generator, List, Any, Optional
+from config_args import ConfigTrainArgs, ConfigModelArgs
+from sklearn.preprocessing import MinMaxScaler
 
-#from dataset.iemocap.iemocap_enrich import LoadUtils
+import util.RAVDESS_dataset_util as Rd
+
 
 class AnnealingBetaGenerator(object):
     @staticmethod
@@ -286,7 +286,7 @@ def au_classiffication_accuracy(model, dataset_loader):
     y_pred = []
     
     with torch.no_grad():
-        for sample in tqdm.tqdm(iter(dataset_loader)):
+        for sample in iter(dataset_loader):
             au, labels = sample
             au, labels = au.cuda(), labels.cuda()
 
@@ -315,6 +315,76 @@ def au_to_au(model, dataset_loader):
     test_loss = test_loss.cpu()
     return test_loss / count
     
+def load_args(cfg_model: ConfigModelArgs, cfg_train: ConfigTrainArgs):
+    m_args = {
+        'cat_dim' : cfg_model.cat_dim,
+        'au_dim' : cfg_model.au_dim,
+        'latent_space_dim' : cfg_model.z_dim,
+        'hidden_dim' : cfg_model.hidden_dim,
+        'num_filters' : cfg_model.num_filters,
+        'modes' : cfg_model.modes,
+        'au_weight': cfg_model.au_weight,
+        'emotion_weight': cfg_model.emotion_weight,
+        'expert_type' : cfg_model.expert_type,
+        'use_cuda' : cfg_train.use_cuda
+    }
+    
+    t_args = {
+        'learning_rate' : cfg_train.learning_rate,
+        'alpha' : cfg_train.alpha,
+        'beta' : cfg_train.static_annealing_beta,
+        'optim_betas' : cfg_train.optim_betas,
+        'num_epochs' : cfg_train.num_epochs,
+        'batch_size' : cfg_train.batch_size
+    }
+    
+    return m_args, t_args
+
+
+def load_data(data_dir='./data', batch_size=128):
+    au_dataset = pd.read_csv(data_dir).to_numpy()
+    au = au_dataset[:,:-2]
+    
+    scaler = MinMaxScaler(feature_range=(0, 1))
+    au = scaler.fit_transform(au)
+    
+    emotions = au_dataset[:,-2].astype(int)-1
+    au_dataset = [(x, y) for x, y in zip(au, emotions)]
+
+    trainingset_len = int(len(au_dataset) * 0.8)
+    testset_len = len(au_dataset) - trainingset_len
+
+    trainset, testset = torch.utils.data.random_split(
+        au_dataset, 
+        [trainingset_len, testset_len],
+        generator=torch.Generator().manual_seed(100)
+    )
+    
+    test_abs = int(len(trainset) * 0.8)
+    train_subset, val_subset = random_split(
+        trainset, [test_abs, len(trainset) - test_abs])
+
+    trainset_loader = DataLoader(
+        train_subset, 
+        batch_size=batch_size,
+        shuffle=False, 
+        num_workers=32)
+
+    valset_loader = DataLoader(
+        val_subset, 
+        batch_size=batch_size,
+        shuffle=False, 
+        num_workers=32)
+
+    testset_loader = DataLoader(
+        testset, 
+        batch_size=batch_size,
+        shuffle=False, 
+        num_workers=32)
+    
+    return trainset_loader, valset_loader, testset_loader
+
+
 
 def print_losses(training_losses, title=None, skipframe=0):
     

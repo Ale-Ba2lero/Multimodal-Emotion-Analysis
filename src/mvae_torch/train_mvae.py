@@ -7,6 +7,7 @@ import numpy
 import torch
 from tqdm import tqdm
 from torch.utils.data import Dataset, DataLoader
+from sklearn.metrics import confusion_matrix, accuracy_score
 
 from multimodal_vae import MultimodalVariationalAutoencoder
 import nn_modules as nnm
@@ -15,6 +16,8 @@ from torch_mvae_util import Expert, ProductOfExperts, MixtureOfExpertsComparable
 from config_args import ConfigTrainArgs, Mode
 
 import torch_mvae_util as U
+
+torch.manual_seed(100)
 
 def build_model(
     cat_dim: int,
@@ -208,14 +211,15 @@ class StatLoss:
 def train(
         mvae_model: torch.nn.Module,
         dataset_loader: DataLoader,
+        valset_loader: DataLoader,
         learning_rate: float,
         optim_betas: Tuple[float, float],
         num_epochs: int,
         seed: int,
         use_cuda: bool,
-        cfg: ConfigTrainArgs,
-        checkpoint_every: int,
-        resume_train: bool = False
+        alpha: float,
+        beta: float,
+        checkpoint_every: int
 ) -> None:
     
     torch.manual_seed(seed=seed)
@@ -224,17 +228,19 @@ def train(
     adam_args = {"lr": learning_rate, "betas": optim_betas}
     optimizer = torch.optim.Adam(params=mvae_model.parameters(), **adam_args)
     
+    '''
     if resume_train:
         loaded_data = torch.load(cfg.checkpoint_save_path)
         mvae_model.load_state_dict(loaded_data['model_params'])
         training_losses = loaded_data['training_loss']  
     else:
-        training_losses: dict = {'multimodal_loss': StatLoss(), 
-                                 'au_loss': StatLoss(), 
-                                 #'face_loss': StatLoss(), 
-                                 'emotion_loss': StatLoss()
-                                }
-            
+    '''
+    training_losses: dict = {'multimodal_loss': StatLoss(), 
+                             'au_loss': StatLoss(), 
+                             #'face_loss': StatLoss(), 
+                             'emotion_loss': StatLoss()
+                            }
+    eval_acc = []
     # Training loop
     for epoch_num in tqdm(range(num_epochs)):
         # Initialize loss accumulator and the progress bar
@@ -242,8 +248,9 @@ def train(
         au_loss = StatLoss()
         # face_loss = StatLoss()
         emotion_loss = StatLoss()
-        annealing_beta = cfg.static_annealing_beta
-        alpha=cfg.alpha
+        annealing_beta = beta
+        alpha= alpha
+        mvae_model.train()
 
         # Do a training epoch over each mini-batch returned
         #   by the data loader
@@ -360,7 +367,20 @@ def train(
         training_losses['emotion_loss'].mmd_loss.append(numpy.nanmean(emotion_loss.mmd_loss))
         training_losses['emotion_loss'].au_reconstruction_loss.append(numpy.nanmean(emotion_loss.au_reconstruction_loss))
         training_losses['emotion_loss'].emotions_reconstruction_loss.append(numpy.nanmean(emotion_loss.emotions_reconstruction_loss))
-
+        
+        if valset_loader is not None:
+            with torch.no_grad():
+                mvae_model.eval()
+                y_true, y_pred = U.au_classiffication_accuracy(mvae_model, valset_loader)
+                accuracy = accuracy_score(y_true, y_pred)
+                eval_acc.append(accuracy)
+                '''
+                if accuracy == min(eval_acc):
+                    PATH = "../trained_models/best_checkpoint.save"
+                    torch.save({'model_state' : mvae_model.state_dict()}, PATH)
+                '''
+            
+        '''
         if checkpoint_every is not None:
             if (epoch_num + 1) % checkpoint_every == 0:
                 checkpoint_save_path: str = cfg.checkpoint_save_path
@@ -370,5 +390,6 @@ def train(
                     'train_args': cfg,
                     'model_params' : mvae_model.state_dict()
                 }, cfg.checkpoint_save_path)
-                
-    return training_losses
+        '''
+
+    return training_losses, eval_acc
