@@ -246,7 +246,6 @@ class DCGANFaceDecoder(nn.Module):
 #------------------------------------------------------------------------------
 #------------------------------------------------------------------------------
 
-
 class AUEncoder(nn.Module):
     def __init__(self, input_dim, z_dim=64, hidden_dim=256):
         super(AUEncoder, self).__init__()
@@ -256,19 +255,19 @@ class AUEncoder(nn.Module):
         self.z_loc_layer = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim, bias=False),
             nn.BatchNorm1d(hidden_dim), 
-            nn.ReLU(), 
+            nn.LeakyReLU(), 
             nn.Linear(hidden_dim, hidden_dim, bias=False),
             nn.BatchNorm1d(hidden_dim), 
-            nn.ReLU(), 
+            nn.LeakyReLU(), 
             nn.Linear(hidden_dim, z_dim))
         
         self.z_scale_layer = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim, bias=False),
             nn.BatchNorm1d(hidden_dim), 
-            nn.ReLU(), 
+            nn.LeakyReLU(), 
             nn.Linear(hidden_dim, hidden_dim, bias=False),
             nn.BatchNorm1d(hidden_dim), 
-            nn.ReLU(), 
+            nn.LeakyReLU(), 
             nn.Linear(hidden_dim, z_dim))
         self.z_dim = z_dim
         
@@ -285,22 +284,22 @@ class AUDecoder(nn.Module):
         super(AUDecoder, self).__init__()
         self.net = nn.Sequential(
             nn.Linear(z_dim, hidden_dim),
-            nn.ReLU())
+            nn.LeakyReLU())
         
         self.hidden = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim, bias=False),
             nn.BatchNorm1d(hidden_dim), 
-            nn.ReLU(), 
+            nn.LeakyReLU(), 
             nn.Linear(hidden_dim, hidden_dim, bias=False),
             nn.BatchNorm1d(hidden_dim), 
-            nn.ReLU(), 
-            nn.Linear(hidden_dim, output_dim),nn.Sigmoid())
+            nn.LeakyReLU(), 
+            nn.Linear(hidden_dim, output_dim), nn.Sigmoid())
         
     def forward(self, z):
         hidden = self.net(z)
         out = self.hidden(hidden)
         return out
-    
+
 #------------------------------------------------------------------------------
 #------------------------------------------------------------------------------
 class EmotionEncoder(nn.Module):
