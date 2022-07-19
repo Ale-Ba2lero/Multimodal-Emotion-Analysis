@@ -156,6 +156,7 @@ def eval_model_training(
         optimizer,
         alpha=1,
         beta=1,
+        rec_weight=1,
         au=None,
         # faces=None,
         emotions=None
@@ -187,6 +188,7 @@ def eval_model_training(
         z_scale=z_scale_expert,
         alpha=alpha,
         beta=beta,
+        rec_weight=rec_weight,
         latent_sample=latent_sample
     )
 
@@ -219,6 +221,7 @@ def train(
         use_cuda: bool,
         alpha: float,
         beta: float,
+        rec_weight: float,
         checkpoint_every: int
 ) -> None:
     
@@ -271,6 +274,7 @@ def train(
                 optimizer=optimizer,
                 alpha=alpha,
                 beta=annealing_beta,
+                rec_weight=rec_weight,
                 au=au,
                 emotions=emotions
             )
@@ -289,6 +293,7 @@ def train(
                 optimizer=optimizer,
                 alpha=alpha,
                 beta=annealing_beta,
+                rec_weight=rec_weight,
                 au=au,
                 emotions=None
             )
@@ -327,6 +332,7 @@ def train(
                 optimizer=optimizer,
                 alpha=alpha,
                 beta=annealing_beta,
+                rec_weight=rec_weight,
                 au=None,
                 emotions=emotions
             )
