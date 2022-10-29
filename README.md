@@ -20,7 +20,7 @@ Relatore -  Giuseppe Boccignone
 
 Corelatore - Sathya Bursic
 
-Read Paper: [MULTIMODAL EMOTION ANALYSIS FOR PRAGMATIC INTERPRETATION OF WORDS IN CONTEXT](https://github.com/Ale-Ba2lero/Multimodal-Emotion-Analysis/blob/main/MULTIMODAL%20EMOTION%20ANALYSIS.pdf)
+Read the Paper: [MULTIMODAL EMOTION ANALYSIS FOR PRAGMATIC INTERPRETATION OF WORDS IN CONTEXT](https://github.com/Ale-Ba2lero/Multimodal-Emotion-Analysis/blob/main/MULTIMODAL%20EMOTION%20ANALYSIS.pdf)
 
 
 <!-- CONTACT -->
